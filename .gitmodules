@@ -1,0 +1,3 @@
+[submodule "frontend/ai-front"]
+	path = frontend/ai-front
+	url = https://github.com/nicolaslallier/AI_Front.git
