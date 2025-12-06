@@ -12,39 +12,55 @@ datasources:
     jsonData:
       httpMethod: POST
       timeInterval: 15s
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
     version: 1
 
-  - name: PostgreSQL
-    type: postgres
+  - name: Tempo
+    type: tempo
     access: proxy
-    url: postgres:5432
-    database: app_db
-    user: postgres
-    secureJsonData:
-      password: postgres
-    jsonData:
-      sslmode: disable
-      maxOpenConns: 100
-      maxIdleConns: 100
-      connMaxLifetime: 14400
+    url: http://tempo:3200
+    uid: tempo
     editable: true
+    jsonData:
+      httpMethod: GET
+      tracesToLogs:
+        datasourceUid: loki
+        tags: ['job', 'instance', 'pod', 'namespace']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mapTagNamesEnabled: false
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '-1h'
+        filterByTraceID: false
+        filterBySpanID: false
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags: [{ key: 'service.name', value: 'service' }, { key: 'job' }]
+        queries:
+          - name: 'Sample query'
+            query: 'sum(rate(tempo_spanmetrics_latency_bucket{$__tags}[5m]))'
+      serviceMap:
+        datasourceUid: prometheus
+      search:
+        hide: false
+      nodeGraph:
+        enabled: true
+      lokiSearch:
+        datasourceUid: loki
     version: 1
 
-  - name: Elasticsearch
-    type: elasticsearch
+  - name: Loki
+    type: loki
     access: proxy
-    url: http://elasticsearch:9200
-    database: "[logs-]YYYY.MM.DD"
-    jsonData:
-      timeField: "@timestamp"
-      esVersion: "8.11.0"
-      logMessageField: message
-      logLevelField: level
-      maxConcurrentShardRequests: 5
-    basicAuth: true
-    basicAuthUser: elastic
-    secureJsonData:
-      basicAuthPassword: elastic
+    url: http://loki:3100
+    uid: loki
     editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: "trace_id=(\\w+)"
+          name: TraceID
+          url: '$${__value.raw}'
     version: 1
-

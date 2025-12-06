@@ -124,32 +124,8 @@ logs-service: ## Follow logs from specific service (usage: make logs-service SER
 # Building & Images
 # ============================================
 
-.PHONY: build
-build: ## Build all service images
-	@echo "$(BLUE)Building images...$(NC)"
-	@docker-compose build
-	@echo "$(GREEN)✓ Images built$(NC)"
-
-.PHONY: build-nocache
-build-nocache: ## Build all images without cache
-	@echo "$(BLUE)Building images without cache...$(NC)"
-	@docker-compose build --no-cache
-	@echo "$(GREEN)✓ Images built$(NC)"
-
-.PHONY: build-python
-build-python: ## Build Python service image
-	@echo "$(BLUE)Building Python service...$(NC)"
-	@docker-compose build python-service
-	@echo "$(GREEN)✓ Python service built$(NC)"
-
-.PHONY: build-nodejs
-build-nodejs: ## Build Node.js service image
-	@echo "$(BLUE)Building Node.js service...$(NC)"
-	@docker-compose build nodejs-service
-	@echo "$(GREEN)✓ Node.js service built$(NC)"
-
 .PHONY: pull
-pull: ## Pull all service images
+pull: ## Pull all monitoring service images
 	@echo "$(BLUE)Pulling images...$(NC)"
 	@docker-compose pull
 	@echo "$(GREEN)✓ Images pulled$(NC)"
@@ -159,124 +135,63 @@ pull: ## Pull all service images
 # ============================================
 
 .PHONY: test
-test: ## Run all tests
-	@echo "$(BLUE)Running tests...$(NC)"
-	@$(MAKE) test-python
-	@$(MAKE) test-nodejs
-	@echo "$(GREEN)✓ All tests completed$(NC)"
-
-.PHONY: test-python
-test-python: ## Run Python service tests
-	@echo "$(BLUE)Running Python tests...$(NC)"
-	@docker-compose exec python-service pytest -v || echo "$(YELLOW)Note: Add tests to services/python-service/tests/$(NC)"
-
-.PHONY: test-nodejs
-test-nodejs: ## Run Node.js service tests
-	@echo "$(BLUE)Running Node.js tests...$(NC)"
-	@docker-compose exec nodejs-service npm test || echo "$(YELLOW)Note: Add tests to services/nodejs-service/tests/$(NC)"
-
-.PHONY: test-coverage
-test-coverage: ## Run tests with coverage report
-	@echo "$(BLUE)Running tests with coverage...$(NC)"
-	@docker-compose exec python-service pytest --cov --cov-report=html || true
-	@docker-compose exec nodejs-service npm run test:cov || true
-	@echo "$(GREEN)✓ Coverage reports generated$(NC)"
+test: ## Test monitoring stack accessibility
+	@echo "$(BLUE)Testing monitoring stack...$(NC)"
+	@echo "Testing Nginx health..."
+	@curl -s http://localhost/health || echo "$(RED)✗ Nginx unhealthy$(NC)"
+	@echo "$(GREEN)✓ Nginx healthy$(NC)"
+	@echo "Testing Grafana..."
+	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/grafana/api/health
+	@echo "Testing Prometheus..."
+	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/prometheus/-/healthy
+	@echo "$(GREEN)✓ Monitoring stack tests completed$(NC)"
 
 # ============================================
-# Database Operations
+# Monitoring Stack Operations
 # ============================================
 
-.PHONY: db-migrate
-db-migrate: ## Run database migrations
-	@echo "$(BLUE)Running database migrations...$(NC)"
-	@docker-compose exec python-service alembic upgrade head || echo "$(YELLOW)Note: Add Alembic migrations$(NC)"
+.PHONY: tempo
+tempo: ## Open Tempo UI
+	@echo "Opening Tempo..."
+	@open http://localhost/tempo/ || xdg-open http://localhost/tempo/ || echo "Visit: http://localhost/tempo/"
 
-.PHONY: db-seed
-db-seed: ## Seed database with sample data
-	@echo "$(BLUE)Seeding database...$(NC)"
-	@./scripts/seed-data.sh
-
-.PHONY: db-backup
-db-backup: ## Backup PostgreSQL database
-	@echo "$(BLUE)Backing up database...$(NC)"
-	@./scripts/backup.sh
-
-.PHONY: db-restore
-db-restore: ## Restore database from backup (usage: make db-restore BACKUP=backups/postgres_backup_TIMESTAMP.sql.gz)
-	@if [ -z "$(BACKUP)" ]; then \
-		echo "$(RED)Error: Please specify BACKUP file$(NC)"; \
-		echo "Usage: make db-restore BACKUP=backups/postgres_backup_20240101_120000.sql.gz"; \
-		exit 1; \
-	fi
-	@echo "$(BLUE)Restoring database from $(BACKUP)...$(NC)"
-	@gunzip < $(BACKUP) | docker-compose exec -T postgres psql -U postgres -d app_db
-	@echo "$(GREEN)✓ Database restored$(NC)"
-
-.PHONY: db-shell
-db-shell: ## Open PostgreSQL shell
-	@docker-compose exec postgres psql -U postgres -d app_db
+.PHONY: loki
+loki: ## Open Loki UI
+	@echo "Opening Loki..."
+	@open http://localhost/loki/ || xdg-open http://localhost/loki/ || echo "Visit: http://localhost/loki/"
 
 # ============================================
 # Service Management
 # ============================================
 
-.PHONY: shell-python
-shell-python: ## Open shell in Python service
-	@docker-compose exec python-service /bin/bash
+.PHONY: restart-grafana
+restart-grafana: ## Restart Grafana service
+	@docker-compose restart grafana
 
-.PHONY: shell-nodejs
-shell-nodejs: ## Open shell in Node.js service
-	@docker-compose exec nodejs-service /bin/sh
+.PHONY: restart-prometheus
+restart-prometheus: ## Restart Prometheus service
+	@docker-compose restart prometheus
 
-.PHONY: shell-redis
-shell-redis: ## Open Redis CLI
-	@docker-compose exec redis redis-cli
+.PHONY: restart-tempo
+restart-tempo: ## Restart Tempo service
+	@docker-compose restart tempo
 
-.PHONY: restart-python
-restart-python: ## Restart Python service
-	@docker-compose restart python-service
+.PHONY: restart-loki
+restart-loki: ## Restart Loki service
+	@docker-compose restart loki
 
-.PHONY: restart-nodejs
-restart-nodejs: ## Restart Node.js service
-	@docker-compose restart nodejs-service
+.PHONY: restart-nginx
+restart-nginx: ## Restart Nginx service
+	@docker-compose restart nginx
 
 # ============================================
-# Code Quality & Linting
+# Configuration Validation
 # ============================================
 
-.PHONY: lint
-lint: ## Run linters on all services
-	@$(MAKE) lint-python
-	@$(MAKE) lint-nodejs
-
-.PHONY: lint-python
-lint-python: ## Lint Python code
-	@echo "$(BLUE)Linting Python code...$(NC)"
-	@docker-compose exec python-service black . --check || true
-	@docker-compose exec python-service ruff . || true
-	@docker-compose exec python-service mypy . || true
-
-.PHONY: lint-nodejs
-lint-nodejs: ## Lint Node.js code
-	@echo "$(BLUE)Linting Node.js code...$(NC)"
-	@docker-compose exec nodejs-service npm run lint || true
-
-.PHONY: format
-format: ## Format code for all services
-	@$(MAKE) format-python
-	@$(MAKE) format-nodejs
-
-.PHONY: format-python
-format-python: ## Format Python code
-	@echo "$(BLUE)Formatting Python code...$(NC)"
-	@docker-compose exec python-service black .
-	@echo "$(GREEN)✓ Python code formatted$(NC)"
-
-.PHONY: format-nodejs
-format-nodejs: ## Format Node.js code
-	@echo "$(BLUE)Formatting Node.js code...$(NC)"
-	@docker-compose exec nodejs-service npm run format
-	@echo "$(GREEN)✓ Node.js code formatted$(NC)"
+.PHONY: validate
+validate: ## Validate configuration files
+	@echo "$(BLUE)Validating configurations...$(NC)"
+	@docker-compose config > /dev/null && echo "$(GREEN)✓ Docker Compose config valid$(NC)" || echo "$(RED)✗ Docker Compose config invalid$(NC)"
 
 # ============================================
 # Monitoring & Health
@@ -290,17 +205,12 @@ health: ## Check health of all services
 .PHONY: metrics
 metrics: ## Open Prometheus metrics
 	@echo "Opening Prometheus..."
-	@open http://localhost:9090 || xdg-open http://localhost:9090 || echo "Visit: http://localhost:9090"
+	@open http://localhost/prometheus/ || xdg-open http://localhost/prometheus/ || echo "Visit: http://localhost/prometheus/"
 
 .PHONY: dashboard
 dashboard: ## Open Grafana dashboard
 	@echo "Opening Grafana..."
-	@open http://localhost:3000 || xdg-open http://localhost:3000 || echo "Visit: http://localhost:3000"
-
-.PHONY: rabbitmq-ui
-rabbitmq-ui: ## Open RabbitMQ management UI
-	@echo "Opening RabbitMQ Management..."
-	@open http://localhost:15672 || xdg-open http://localhost:15672 || echo "Visit: http://localhost:15672"
+	@open http://localhost/grafana/ || xdg-open http://localhost/grafana/ || echo "Visit: http://localhost/grafana/"
 
 # ============================================
 # CI/CD Operations
@@ -310,25 +220,17 @@ rabbitmq-ui: ## Open RabbitMQ management UI
 ci-test: ## Run CI test pipeline
 	@echo "$(BLUE)Running CI test pipeline...$(NC)"
 	@$(MAKE) check
-	@$(MAKE) build
+	@$(MAKE) pull
 	@$(MAKE) up
-	@sleep 10
+	@sleep 15
 	@$(MAKE) test
-	@$(MAKE) lint
 	@echo "$(GREEN)✓ CI pipeline completed$(NC)"
-
-.PHONY: ci-build
-ci-build: ## Build for CI/CD
-	@echo "$(BLUE)Building for CI/CD...$(NC)"
-	@docker-compose -f $(COMPOSE_FILE) build --parallel
-	@echo "$(GREEN)✓ Build completed$(NC)"
 
 .PHONY: ci-deploy-staging
 ci-deploy-staging: ## Deploy to staging environment
 	@echo "$(BLUE)Deploying to staging...$(NC)"
-	@$(MAKE) build
+	@$(MAKE) pull
 	@docker-compose -f $(COMPOSE_FILE) up -d
-	@$(MAKE) db-migrate
 	@echo "$(GREEN)✓ Deployed to staging$(NC)"
 
 .PHONY: ci-deploy-prod
@@ -336,9 +238,8 @@ ci-deploy-prod: ## Deploy to production environment
 	@echo "$(BLUE)Deploying to production...$(NC)"
 	@echo "$(YELLOW)⚠️  Production deployment - proceed with caution$(NC)"
 	@read -p "Are you sure? (yes/no): " confirm && [ "$$confirm" = "yes" ]
-	@$(MAKE) build-nocache
+	@$(MAKE) pull
 	@docker-compose -f $(COMPOSE_FILE) up -d
-	@$(MAKE) db-migrate
 	@$(MAKE) health
 	@echo "$(GREEN)✓ Deployed to production$(NC)"
 
@@ -418,10 +319,6 @@ docs: ## Open documentation in browser
 		cat README.md; \
 	fi
 
-.PHONY: api-docs
-api-docs: ## Open API documentation
-	@echo "Opening API docs..."
-	@open http://localhost:8000/docs || xdg-open http://localhost:8000/docs || echo "Visit: http://localhost:8000/docs"
 
 # ============================================
 # Utilities
@@ -432,44 +329,27 @@ version: ## Show versions of all components
 	@echo "$(BLUE)Component Versions:$(NC)"
 	@echo "Docker: $$(docker --version)"
 	@echo "Docker Compose: $$(docker-compose --version)"
-	@docker-compose exec postgres postgres --version || true
-	@docker-compose exec redis redis-server --version || true
-	@docker-compose exec rabbitmq rabbitmqctl version || true
+	@docker-compose exec grafana grafana-server -v || true
+	@docker-compose exec prometheus prometheus --version || true
 
 .PHONY: urls
 urls: ## Show all service URLs
-	@echo "$(BLUE)Service URLs:$(NC)"
-	@echo "$(GREEN)Grafana:$(NC)       http://localhost:3000 (admin/admin)"
-	@echo "$(GREEN)Prometheus:$(NC)    http://localhost:9090"
-	@echo "$(GREEN)RabbitMQ:$(NC)      http://localhost:15672 (rabbitmq/rabbitmq)"
-	@echo "$(GREEN)Elasticsearch:$(NC) http://localhost:9200 (elastic/elastic)"
-	@echo "$(GREEN)Python API:$(NC)    http://localhost:8000"
-	@echo "$(GREEN)Node.js API:$(NC)   http://localhost:3001"
+	@echo "$(BLUE)Service URLs (via Nginx):$(NC)"
+	@echo "$(GREEN)Main Entry:$(NC)    http://localhost/"
+	@echo "$(GREEN)Grafana:$(NC)       http://localhost/grafana/ (admin/admin)"
+	@echo "$(GREEN)Prometheus:$(NC)    http://localhost/prometheus/"
+	@echo "$(GREEN)Tempo:$(NC)         http://localhost/tempo/"
+	@echo "$(GREEN)Loki:$(NC)          http://localhost/loki/"
+	@echo ""
+	@echo "$(BLUE)Direct Access (not through Nginx):$(NC)"
+	@echo "$(GREEN)Tempo OTLP:$(NC)    grpc://localhost:4317, http://localhost:4318"
+	@echo "$(GREEN)Loki:$(NC)          http://localhost:3100"
+	@echo "$(GREEN)Tempo:$(NC)         http://localhost:3200"
 
 .PHONY: env
 env: ## Show environment variables
 	@cat .env 2>/dev/null || echo "$(RED).env file not found$(NC)"
 
-# ============================================
-# Installation & Dependencies
-# ============================================
-
-.PHONY: install-python-deps
-install-python-deps: ## Install Python dependencies
-	@echo "$(BLUE)Installing Python dependencies...$(NC)"
-	@docker-compose exec python-service poetry install
-
-.PHONY: install-nodejs-deps
-install-nodejs-deps: ## Install Node.js dependencies
-	@echo "$(BLUE)Installing Node.js dependencies...$(NC)"
-	@docker-compose exec nodejs-service npm install
-
-.PHONY: update-deps
-update-deps: ## Update all dependencies
-	@echo "$(BLUE)Updating dependencies...$(NC)"
-	@docker-compose exec python-service poetry update
-	@docker-compose exec nodejs-service npm update
-	@echo "$(GREEN)✓ Dependencies updated$(NC)"
 
 # ============================================
 # Security
@@ -483,11 +363,6 @@ security-scan: ## Scan images for vulnerabilities
 		docker scan $$(docker-compose ps -q $$service) || true; \
 	done
 
-.PHONY: audit
-audit: ## Audit dependencies for vulnerabilities
-	@echo "$(BLUE)Auditing dependencies...$(NC)"
-	@docker-compose exec python-service poetry audit || true
-	@docker-compose exec nodejs-service npm audit || true
 
 # ============================================
 # Performance
