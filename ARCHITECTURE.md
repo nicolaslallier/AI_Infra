@@ -117,6 +117,59 @@ Services are organized into distinct tiers:
 - **Persistent Storage**: Named volume `rabbitmq_data`
 - **Management UI**: Port 15672
 
+### Presentation Tier
+
+#### Frontend Application (Vue 3 SPA)
+- **Purpose**: User-facing web application
+- **Technology Stack**:
+  - Vue 3: Progressive JavaScript framework with Composition API
+  - TypeScript: Type safety and better developer experience
+  - Vite: Fast build tool and dev server
+  - Tailwind CSS: Utility-first CSS framework
+  - Pinia: State management
+  - Vue Router: Client-side routing
+
+- **Key Features**:
+  - Single Page Application (SPA) architecture
+  - Component-based architecture with feature modules
+  - Type-safe development with TypeScript
+  - Responsive design with Tailwind CSS
+  - Client-side routing with SPA fallback
+  - Production-optimized build with code splitting
+  - 90%+ test coverage with Vitest and Playwright
+
+- **Multi-Stage Docker Build**:
+  - Build stage: Node.js 20 for compiling Vue app
+  - Production stage: Nginx Alpine for serving static assets
+  - Optimized bundle size with tree shaking
+  - Asset caching with immutable cache headers
+
+- **Deployment**:
+  - Served via internal nginx at port 80
+  - Proxied through main nginx reverse proxy at root path (/)
+  - Health check endpoint at /health
+
+- **Network Access**: `frontend-net`, `monitoring-net`
+
+#### Reverse Proxy (Nginx)
+- **Purpose**: Central entry point for all web traffic
+- **Routing Configuration**:
+  - `/` - Frontend Vue.js application
+  - `/monitoring/grafana/` - Grafana dashboards
+  - `/monitoring/prometheus/` - Prometheus metrics UI
+  - `/monitoring/tempo/` - Tempo tracing UI
+  - `/monitoring/loki/` - Loki log aggregation UI
+  - `/health` - Health check endpoint
+
+- **Features**:
+  - SPA routing support with fallback to index.html
+  - Static asset caching with 1-year expiration
+  - Gzip compression for text resources
+  - WebSocket support for Grafana Live
+  - Request/response logging
+
+- **Network Access**: `frontend-net`, `monitoring-net`
+
 ### Application Tier
 
 #### Python Service (FastAPI)
@@ -235,29 +288,32 @@ Services are organized into distinct tiers:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     Frontend Network                     │
-│  - Grafana (UI)                                         │
-│  - Application Services (APIs)                          │
+│  - Vue 3 SPA (Frontend Container)                       │
+│  - Nginx Reverse Proxy (Main Entry Point)              │
+│  - Routes: /, /monitoring/*                             │
 └─────────────────────────────────────────────────────────┘
                             │
 ┌─────────────────────────────────────────────────────────┐
 │                     Backend Network                      │
-│  - Python Service                                       │
-│  - Node.js Service                                      │
-│  - RabbitMQ                                            │
-│  - Elasticsearch                                        │
+│  - Python Service (FastAPI)                             │
+│  - Node.js Service (TypeScript)                         │
+│  - RabbitMQ (Message Queue)                            │
+│  - Elasticsearch (Search Engine)                        │
 └─────────────────────────────────────────────────────────┘
                             │
 ┌─────────────────────────────────────────────────────────┐
 │                      Data Network                        │
-│  - PostgreSQL                                           │
-│  - Redis                                                │
+│  - PostgreSQL (Primary Database)                        │
+│  - Redis (Cache & Sessions)                             │
 │  - Database Exporters                                   │
 └─────────────────────────────────────────────────────────┘
                             │
 ┌─────────────────────────────────────────────────────────┐
 │                   Monitoring Network                     │
-│  - Prometheus                                           │
-│  - Grafana                                              │
+│  - Prometheus (Metrics Collection)                      │
+│  - Grafana (Visualization)                              │
+│  - Tempo (Distributed Tracing)                          │
+│  - Loki (Log Aggregation)                               │
 │  - All Exporters                                        │
 │  - All Services (metrics endpoints)                     │
 └─────────────────────────────────────────────────────────┘
@@ -265,10 +321,10 @@ Services are organized into distinct tiers:
 
 ### Network Policies
 
-- **frontend-net** (172.20.0.0/24): External-facing services
+- **frontend-net** (172.50.0.0/24): User-facing services (Vue.js app, Nginx reverse proxy)
 - **backend-net** (172.21.0.0/24): Internal application services
 - **data-net** (172.22.0.0/24): Data persistence layer
-- **monitoring-net** (172.23.0.0/24): Observability stack
+- **monitoring-net** (172.31.0.0/24): Observability stack
 
 Services can belong to multiple networks based on communication needs.
 

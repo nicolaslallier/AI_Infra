@@ -109,6 +109,16 @@ if [ "$DETACHED" = false ]; then
     DETACHED_FLAG=""
 fi
 
+# Initialize Git submodules (frontend)
+if [ -d "$PROJECT_DIR/.git" ] && [ -f "$PROJECT_DIR/.gitmodules" ]; then
+    if [ ! -d "$PROJECT_DIR/frontend/ai-front/.git" ]; then
+        echo -e "${YELLOW}Initializing frontend submodule...${NC}"
+        cd "$PROJECT_DIR"
+        git submodule update --init --recursive
+        echo -e "${GREEN}✓ Frontend submodule initialized${NC}"
+    fi
+fi
+
 # Create necessary directories
 echo -e "${YELLOW}Creating necessary directories...${NC}"
 mkdir -p "$PROJECT_DIR/logs"
@@ -133,8 +143,11 @@ if [ "$DETACHED" = true ]; then
     echo -e "${GREEN}========================================${NC}"
     echo ""
     echo "Service URLs:"
-    echo "  - Grafana:      http://localhost:3000 (admin/admin)"
-    echo "  - Prometheus:   http://localhost:9090"
+    echo "  - Frontend:     http://localhost/"
+    echo "  - Grafana:      http://localhost/monitoring/grafana/ (admin/admin)"
+    echo "  - Prometheus:   http://localhost/monitoring/prometheus/"
+    echo "  - Tempo:        http://localhost/monitoring/tempo/"
+    echo "  - Loki:         http://localhost/monitoring/loki/"
     echo "  - RabbitMQ:     http://localhost:15672 (rabbitmq/rabbitmq)"
     echo "  - Elasticsearch: http://localhost:9200 (elastic/elastic)"
     echo "  - Python API:   http://localhost:8000"

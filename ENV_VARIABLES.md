@@ -150,15 +150,23 @@ This document provides detailed information about all environment variables used
 
 ## Monitoring Stack
 
+**Note**: All monitoring services are now accessible via nginx reverse proxy at `/monitoring/*` paths:
+- Grafana: `http://localhost/monitoring/grafana/`
+- Prometheus: `http://localhost/monitoring/prometheus/`
+- Tempo: `http://localhost/monitoring/tempo/`
+- Loki: `http://localhost/monitoring/loki/`
+
 ### PROMETHEUS_PORT
-- **Description**: Prometheus web UI and API port
+- **Description**: Prometheus web UI and API port (internal)
 - **Default**: `9090`
 - **Required**: Yes
+- **Access**: Via nginx at `/monitoring/prometheus/`
 
 ### GRAFANA_PORT
-- **Description**: Grafana web UI port
+- **Description**: Grafana web UI port (internal)
 - **Default**: `3000`
 - **Required**: Yes
+- **Access**: Via nginx at `/monitoring/grafana/`
 
 ### GRAFANA_USER
 - **Description**: Grafana admin username
@@ -175,6 +183,28 @@ This document provides detailed information about all environment variables used
 - **Description**: Comma-separated list of Grafana plugins to install
 - **Example**: `grafana-clock-panel,grafana-simple-json-datasource`
 - **Required**: No
+
+### TEMPO_HTTP_PORT
+- **Description**: Tempo HTTP port (internal)
+- **Default**: `3200`
+- **Required**: Yes
+- **Access**: Via nginx at `/monitoring/tempo/`
+
+### TEMPO_OTLP_GRPC_PORT
+- **Description**: Tempo OTLP gRPC receiver port
+- **Default**: `4317`
+- **Required**: Yes
+
+### TEMPO_OTLP_HTTP_PORT
+- **Description**: Tempo OTLP HTTP receiver port
+- **Default**: `4318`
+- **Required**: Yes
+
+### LOKI_PORT
+- **Description**: Loki HTTP API port (internal)
+- **Default**: `3100`
+- **Required**: Yes
+- **Access**: Via nginx at `/monitoring/loki/`
 
 ### NODE_EXPORTER_PORT
 - **Description**: Node Exporter metrics port
@@ -194,6 +224,18 @@ This document provides detailed information about all environment variables used
 ---
 
 ## Application Services
+
+### FRONTEND_PORT
+- **Description**: Frontend application internal port
+- **Default**: `80`
+- **Required**: Yes
+- **Note**: Internal port for the Vue.js frontend container
+
+### NGINX_PORT
+- **Description**: Nginx reverse proxy external port
+- **Default**: `80`
+- **Required**: Yes
+- **Note**: Main entry point for all web traffic
 
 ### PYTHON_SERVICE_PORT
 - **Description**: Python service HTTP port

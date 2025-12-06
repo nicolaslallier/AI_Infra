@@ -130,21 +130,32 @@ pull: ## Pull all monitoring service images
 	@docker-compose pull
 	@echo "$(GREEN)✓ Images pulled$(NC)"
 
+.PHONY: build
+build: ## Build all services
+	@echo "$(BLUE)Building services...$(NC)"
+	@docker-compose build
+	@echo "$(GREEN)✓ Services built$(NC)"
+
+.PHONY: build-frontend
+build-frontend: frontend-build ## Alias for frontend-build
+
 # ============================================
 # Testing
 # ============================================
 
 .PHONY: test
-test: ## Test monitoring stack accessibility
-	@echo "$(BLUE)Testing monitoring stack...$(NC)"
+test: ## Test infrastructure accessibility
+	@echo "$(BLUE)Testing infrastructure stack...$(NC)"
 	@echo "Testing Nginx health..."
 	@curl -s http://localhost/health || echo "$(RED)✗ Nginx unhealthy$(NC)"
 	@echo "$(GREEN)✓ Nginx healthy$(NC)"
+	@echo "Testing Frontend..."
+	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/
 	@echo "Testing Grafana..."
-	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/grafana/api/health
+	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/monitoring/grafana/api/health
 	@echo "Testing Prometheus..."
-	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/prometheus/-/healthy
-	@echo "$(GREEN)✓ Monitoring stack tests completed$(NC)"
+	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/monitoring/prometheus/-/healthy
+	@echo "$(GREEN)✓ Infrastructure tests completed$(NC)"
 
 # ============================================
 # Monitoring Stack Operations
@@ -153,12 +164,12 @@ test: ## Test monitoring stack accessibility
 .PHONY: tempo
 tempo: ## Open Tempo UI
 	@echo "Opening Tempo..."
-	@open http://localhost/tempo/ || xdg-open http://localhost/tempo/ || echo "Visit: http://localhost/tempo/"
+	@open http://localhost/monitoring/tempo/ || xdg-open http://localhost/monitoring/tempo/ || echo "Visit: http://localhost/monitoring/tempo/"
 
 .PHONY: loki
 loki: ## Open Loki UI
 	@echo "Opening Loki..."
-	@open http://localhost/loki/ || xdg-open http://localhost/loki/ || echo "Visit: http://localhost/loki/"
+	@open http://localhost/monitoring/loki/ || xdg-open http://localhost/monitoring/loki/ || echo "Visit: http://localhost/monitoring/loki/"
 
 # ============================================
 # Service Management
@@ -184,6 +195,48 @@ restart-loki: ## Restart Loki service
 restart-nginx: ## Restart Nginx service
 	@docker-compose restart nginx
 
+.PHONY: restart-frontend
+restart-frontend: ## Restart Frontend service
+	@docker-compose restart frontend
+
+# ============================================
+# Frontend Operations
+# ============================================
+
+.PHONY: frontend-build
+frontend-build: ## Build frontend Docker image
+	@echo "$(BLUE)Building frontend...$(NC)"
+	@docker-compose build frontend
+	@echo "$(GREEN)✓ Frontend built$(NC)"
+
+.PHONY: frontend-dev
+frontend-dev: ## Run frontend in development mode with hot-reload
+	@echo "$(BLUE)Starting frontend in development mode...$(NC)"
+	@./scripts/dev-frontend.sh
+
+.PHONY: frontend-update
+frontend-update: ## Update frontend submodule to latest version
+	@echo "$(BLUE)Updating frontend submodule...$(NC)"
+	@./scripts/update-frontend.sh
+
+.PHONY: frontend-logs
+frontend-logs: ## Show frontend logs
+	@docker-compose logs -f --tail=100 frontend
+
+.PHONY: frontend-shell
+frontend-shell: ## Open shell in frontend container
+	@docker-compose exec frontend sh
+
+.PHONY: frontend-test
+frontend-test: ## Run frontend tests
+	@echo "$(BLUE)Running frontend tests...$(NC)"
+	@cd frontend/ai-front && npm run test
+
+.PHONY: frontend-validate
+frontend-validate: ## Validate frontend code (lint, format, type-check)
+	@echo "$(BLUE)Validating frontend code...$(NC)"
+	@cd frontend/ai-front && npm run validate
+
 # ============================================
 # Configuration Validation
 # ============================================
@@ -205,12 +258,17 @@ health: ## Check health of all services
 .PHONY: metrics
 metrics: ## Open Prometheus metrics
 	@echo "Opening Prometheus..."
-	@open http://localhost/prometheus/ || xdg-open http://localhost/prometheus/ || echo "Visit: http://localhost/prometheus/"
+	@open http://localhost/monitoring/prometheus/ || xdg-open http://localhost/monitoring/prometheus/ || echo "Visit: http://localhost/monitoring/prometheus/"
 
 .PHONY: dashboard
 dashboard: ## Open Grafana dashboard
 	@echo "Opening Grafana..."
-	@open http://localhost/grafana/ || xdg-open http://localhost/grafana/ || echo "Visit: http://localhost/grafana/"
+	@open http://localhost/monitoring/grafana/ || xdg-open http://localhost/monitoring/grafana/ || echo "Visit: http://localhost/monitoring/grafana/"
+
+.PHONY: open-frontend
+open-frontend: ## Open frontend application in browser
+	@echo "Opening frontend..."
+	@open http://localhost/ || xdg-open http://localhost/ || echo "Visit: http://localhost/"
 
 # ============================================
 # CI/CD Operations
@@ -335,13 +393,17 @@ version: ## Show versions of all components
 .PHONY: urls
 urls: ## Show all service URLs
 	@echo "$(BLUE)Service URLs (via Nginx):$(NC)"
-	@echo "$(GREEN)Main Entry:$(NC)    http://localhost/"
-	@echo "$(GREEN)Grafana:$(NC)       http://localhost/grafana/ (admin/admin)"
-	@echo "$(GREEN)Prometheus:$(NC)    http://localhost/prometheus/"
-	@echo "$(GREEN)Tempo:$(NC)         http://localhost/tempo/"
-	@echo "$(GREEN)Loki:$(NC)          http://localhost/loki/"
+	@echo "$(GREEN)Frontend:$(NC)      http://localhost/"
+	@echo "$(GREEN)Grafana:$(NC)       http://localhost/monitoring/grafana/ (admin/admin)"
+	@echo "$(GREEN)Prometheus:$(NC)    http://localhost/monitoring/prometheus/"
+	@echo "$(GREEN)Tempo:$(NC)         http://localhost/monitoring/tempo/"
+	@echo "$(GREEN)Loki:$(NC)          http://localhost/monitoring/loki/"
 	@echo ""
 	@echo "$(BLUE)Direct Access (not through Nginx):$(NC)"
+	@echo "$(GREEN)RabbitMQ:$(NC)      http://localhost:15672 (rabbitmq/rabbitmq)"
+	@echo "$(GREEN)Elasticsearch:$(NC) http://localhost:9200 (elastic/elastic)"
+	@echo "$(GREEN)Python API:$(NC)    http://localhost:8000"
+	@echo "$(GREEN)Node.js API:$(NC)   http://localhost:3001"
 	@echo "$(GREEN)Tempo OTLP:$(NC)    grpc://localhost:4317, http://localhost:4318"
 	@echo "$(GREEN)Loki:$(NC)          http://localhost:3100"
 	@echo "$(GREEN)Tempo:$(NC)         http://localhost:3200"

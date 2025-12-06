@@ -53,9 +53,12 @@ Open these URLs in your browser:
 
 | Service | URL | Login |
 |---------|-----|-------|
-| **Grafana** (Monitoring) | http://localhost:3000 | admin / admin |
+| **Frontend App** | http://localhost/ | - |
+| **Grafana** (Monitoring) | http://localhost/monitoring/grafana/ | admin / admin |
+| **Prometheus** (Metrics) | http://localhost/monitoring/prometheus/ | - |
+| **Tempo** (Tracing) | http://localhost/monitoring/tempo/ | - |
+| **Loki** (Logs) | http://localhost/monitoring/loki/ | - |
 | **RabbitMQ** (Queues) | http://localhost:15672 | rabbitmq / rabbitmq |
-| **Prometheus** (Metrics) | http://localhost:9090 | - |
 | **Python API** | http://localhost:8000 | - |
 | **Node.js API** | http://localhost:3001 | - |
 
@@ -125,7 +128,10 @@ curl http://localhost:8000/docs  # OpenAPI docs
 ./scripts/logs.sh -s python-service
 
 # Check Grafana dashboards
-open http://localhost:3000  # Default: admin/admin
+open http://localhost/monitoring/grafana/  # Default: admin/admin
+
+# View frontend application
+open http://localhost/
 ```
 
 ## Common Commands
@@ -245,9 +251,10 @@ docker system df
 ## Success Checklist
 
 - ✅ All services show "Up (healthy)"
-- ✅ Can access Grafana at localhost:3000
-- ✅ Can access RabbitMQ management at localhost:15672
-- ✅ Python API responds at localhost:8000
+- ✅ Frontend loads at http://localhost/
+- ✅ Can access Grafana at http://localhost/monitoring/grafana/
+- ✅ Can access RabbitMQ management at http://localhost:15672
+- ✅ Python API responds at http://localhost:8000
 - ✅ Grafana shows metrics from all services
 - ✅ No errors in `docker-compose logs`
 

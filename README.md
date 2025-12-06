@@ -6,21 +6,22 @@ A production-ready, multi-service Docker infrastructure for AI applications with
 
 This infrastructure provides a complete stack for building scalable AI applications:
 
+- **Frontend**: Vue 3 SPA with TypeScript and Tailwind CSS
 - **Database**: PostgreSQL 16 with optimized configuration
 - **Cache**: Redis 7 with persistence and clustering support
 - **Message Queue**: RabbitMQ 3 with management UI
 - **Search Engine**: Elasticsearch 8 with security enabled
-- **Monitoring**: Prometheus + Grafana with pre-configured dashboards
+- **Monitoring**: Prometheus + Grafana + Tempo + Loki with pre-configured dashboards
 - **Application Services**: Python (FastAPI) + Node.js (TypeScript) microservices
 
 ### Network Architecture
 
 Services are organized across isolated Docker networks following the principle of least privilege:
 
-- `frontend-net`: Client-facing services
-- `backend-net`: Application microservices
-- `data-net`: Databases and cache
-- `monitoring-net`: Observability stack
+- `frontend-net`: Vue.js SPA and nginx reverse proxy
+- `backend-net`: Application microservices (Python, Node.js)
+- `data-net`: Databases and cache (PostgreSQL, Redis, Elasticsearch)
+- `monitoring-net`: Observability stack (Prometheus, Grafana, Tempo, Loki)
 
 ## 🚀 Quick Start
 
@@ -55,18 +56,26 @@ Once started, access the services at:
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Grafana | http://localhost:3000 | admin / admin |
-| Prometheus | http://localhost:9090 | - |
+| **Frontend Application** | http://localhost/ | - |
+| **Monitoring Dashboard** | http://localhost/monitoring/grafana/ | admin / admin |
+| Prometheus | http://localhost/monitoring/prometheus/ | - |
+| Tempo | http://localhost/monitoring/tempo/ | - |
+| Loki | http://localhost/monitoring/loki/ | - |
 | RabbitMQ Management | http://localhost:15672 | rabbitmq / rabbitmq |
 | Elasticsearch | http://localhost:9200 | elastic / elastic |
 | Python API | http://localhost:8000 | - |
 | Node.js API | http://localhost:3001 | - |
 
+**Note**: All monitoring services are now accessible through nginx reverse proxy at `/monitoring/*` paths.
+
 ## 📁 Project Structure
 
 ```
 AI_Infra/
+├── frontend/                    # Frontend application
+│   └── ai-front/               # Vue 3 SPA (Git submodule)
 ├── docker/                      # Docker configurations
+│   ├── nginx/                  # Nginx reverse proxy config
 │   ├── postgres/               # PostgreSQL setup
 │   │   ├── init/              # Initialization scripts
 │   │   └── conf/              # Configuration files
@@ -78,6 +87,8 @@ AI_Infra/
 │   ├── grafana/               # Grafana setup
 │   │   ├── provisioning/      # Datasources & dashboards
 │   │   └── dashboards/        # Pre-built dashboards
+│   ├── tempo/                 # Tempo (distributed tracing)
+│   ├── loki/                  # Loki (log aggregation)
 │   ├── python-service/        # Python microservice
 │   └── nodejs-service/        # Node.js microservice
 ├── scripts/                    # Utility scripts
