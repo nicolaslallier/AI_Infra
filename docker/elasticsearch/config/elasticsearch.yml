@@ -1,0 +1,60 @@
+# Elasticsearch Configuration for AI Infrastructure
+
+# ======================== Cluster =============================
+cluster.name: ai-infra-cluster
+node.name: es-node-01
+node.roles: [ master, data, ingest ]
+
+# ======================== Network =========================
+network.host: 0.0.0.0
+http.port: 9200
+transport.port: 9300
+
+# ======================== Discovery =======================
+discovery.type: single-node
+discovery.seed_hosts: []
+
+# ======================== Gateway =========================
+gateway.recover_after_nodes: 1
+
+# ======================== Various =========================
+action.destructive_requires_name: true
+action.auto_create_index: true
+
+# ======================== Security ========================
+xpack.security.enabled: true
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# ======================== Monitoring ======================
+xpack.monitoring.collection.enabled: true
+
+# ======================== Machine Learning ================
+xpack.ml.enabled: false
+
+# ======================== Index Settings ==================
+# Default index settings
+index.number_of_shards: 1
+index.number_of_replicas: 0
+index.refresh_interval: 1s
+
+# ======================== Index Lifecycle =================
+indices.recovery.max_bytes_per_sec: 100mb
+
+# ======================== Search ==========================
+search.max_buckets: 10000
+
+# ======================== Thread Pools ====================
+thread_pool.write.queue_size: 1000
+thread_pool.search.queue_size: 1000
+
+# ======================== Bootstrap =======================
+bootstrap.memory_lock: true
+
+# ======================== Path ============================
+path.data: /usr/share/elasticsearch/data
+path.logs: /usr/share/elasticsearch/logs
+
+# ======================== Snapshots =======================
+path.repo: ["/usr/share/elasticsearch/backup"]
+

@@ -1,0 +1,151 @@
+# GitLab CI/CD Pipeline
+# For GitLab users
+
+stages:
+  - lint
+  - build
+  - test
+  - security
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_BUILDKIT: 1
+
+# ============================================
+# Lint Stage
+# ============================================
+lint:python:
+  stage: lint
+  image: python:3.11-slim
+  before_script:
+    - pip install black ruff mypy
+  script:
+    - make lint-python
+  only:
+    - merge_requests
+    - main
+    - develop
+
+lint:nodejs:
+  stage: lint
+  image: node:20-alpine
+  before_script:
+    - cd docker/nodejs-service
+    - npm install
+  script:
+    - npm run lint || true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# ============================================
+# Build Stage
+# ============================================
+build:images:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - make build
+    - docker-compose push || true
+  only:
+    - main
+    - develop
+  tags:
+    - docker
+
+# ============================================
+# Test Stage
+# ============================================
+test:unit:
+  stage: test
+  image: docker/compose:latest
+  services:
+    - docker:dind
+  before_script:
+    - cp .env.example .env
+  script:
+    - make ci-test
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# ============================================
+# Security Stage
+# ============================================
+security:scan:
+  stage: security
+  image: aquasec/trivy:latest
+  script:
+    - trivy fs --exit-code 0 --no-progress .
+    - trivy fs --exit-code 1 --severity CRITICAL --no-progress .
+  only:
+    - merge_requests
+    - main
+    - develop
+
+security:audit:
+  stage: security
+  image: docker/compose:latest
+  services:
+    - docker:dind
+  script:
+    - make audit || true
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# ============================================
+# Deploy Stage
+# ============================================
+deploy:staging:
+  stage: deploy
+  image: docker/compose:latest
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+  script:
+    - ssh $STAGING_USER@$STAGING_HOST "cd /app && git pull && make ci-deploy-staging"
+  environment:
+    name: staging
+    url: https://staging.example.com
+  only:
+    - develop
+  when: manual
+
+deploy:production:
+  stage: deploy
+  image: docker/compose:latest
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+  script:
+    - ssh $PRODUCTION_USER@$PRODUCTION_HOST "cd /app && git pull && make ci-deploy-prod"
+  environment:
+    name: production
+    url: https://example.com
+  only:
+    - main
+  when: manual
+
