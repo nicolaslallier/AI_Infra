@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "AI Infrastructure PostgreSQL",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "app_db",
+      "Username": "postgres",
+      "SSLMode": "prefer",
+      "Comment": "Main PostgreSQL database for AI Infrastructure project"
+    }
+  }
+}
+

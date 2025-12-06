@@ -1,0 +1,175 @@
+# ============================================
+# Keycloak Log-Based Alert Rules (DISABLED)
+# AI Infrastructure Project
+# ============================================
+# These alerts use LogQL (Loki Query Language) and are incompatible with Prometheus.
+# To use these alerts, configure Loki Ruler and move this file to docker/loki/rules/
+# See: docker/prometheus/alerts/README-LOG-BASED-ALERTS.md
+
+groups:
+  - name: keycloak_authentication_security
+    interval: 1m
+    rules:
+      - alert: KeycloakHighAuthenticationFailureRate
+        expr: |
+          (
+            count_over_time({source="keycloak", security_event="auth_failure"}[5m])
+          ) > 5
+        for: 1m
+        labels:
+          severity: warning
+          service: keycloak
+          tier: identity_provider
+          component: security
+          security_event: auth_failure
+        annotations:
+          summary: "High authentication failure rate detected"
+          description: "More than 5 authentication failures detected in the last 5 minutes. Possible brute force attack or credential issues."
+          query: '{source="keycloak", security_event="auth_failure"}'
+          action: "Review Loki logs for failed authentication attempts, check for IP patterns, verify user accounts are not locked."
+
+      - alert: KeycloakCriticalAuthenticationFailures
+        expr: |
+          (
+            count_over_time({source="keycloak", security_event="auth_failure"}[5m])
+          ) > 20
+        for: 1m
+        labels:
+          severity: critical
+          service: keycloak
+          tier: identity_provider
+          component: security
+          security_event: brute_force_attack
+        annotations:
+          summary: "CRITICAL: Potential brute force attack detected"
+          description: "More than 20 authentication failures in 5 minutes. This may indicate a brute force attack or system misconfiguration."
+          query: '{source="keycloak", security_event="auth_failure"}'
+          action: "IMMEDIATE ACTION REQUIRED: Check source IPs, enable rate limiting, review firewall rules, notify security team."
+
+      - alert: KeycloakAccountLockout
+        expr: |
+          count_over_time({source="keycloak"} |~ "(?i)account.*locked|user.*locked"[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: keycloak
+          tier: identity_provider
+          component: security
+          security_event: account_lockout
+        annotations:
+          summary: "User account lockout detected"
+          description: "One or more user accounts have been locked due to failed authentication attempts."
+          query: '{source="keycloak"} |~ "(?i)account.*locked|user.*locked"'
+          action: "Review locked accounts, verify if lockout is legitimate or due to attack."
+
+  - name: keycloak_admin_events
+    interval: 1m
+    rules:
+      - alert: KeycloakAdminConfigurationChange
+        expr: |
+          count_over_time({source="keycloak", security_event="admin_action"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: info
+          service: keycloak
+          tier: identity_provider
+          component: administration
+          security_event: config_change
+        annotations:
+          summary: "Keycloak administrative configuration change"
+          description: "An administrative change was made to Keycloak configuration."
+          query: '{source="keycloak", security_event="admin_action"}'
+          action: "Review admin audit logs to verify authorized changes."
+
+      - alert: KeycloakUserManagementEvent
+        expr: |
+          count_over_time({source="keycloak", security_event="user_management"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: info
+          service: keycloak
+          tier: identity_provider
+          component: user_management
+          security_event: user_change
+        annotations:
+          summary: "Keycloak user management event"
+          description: "User accounts were created, modified, or deleted in Keycloak."
+          query: '{source="keycloak", security_event="user_management"}'
+          action: "Review user management logs for audit trail."
+
+  - name: keycloak_database_connectivity
+    interval: 1m
+    rules:
+      - alert: KeycloakDatabaseConnectionErrors
+        expr: |
+          count_over_time({source="keycloak", level="ERROR"} |~ "(?i)database|connection|sql"[5m]) > 3
+        for: 2m
+        labels:
+          severity: critical
+          service: keycloak
+          tier: identity_provider
+          component: database
+        annotations:
+          summary: "Keycloak database connection errors"
+          description: "Keycloak is experiencing database connection errors."
+          query: '{source="keycloak", level="ERROR"} |~ "(?i)database|connection|sql"'
+          action: "Check PostgreSQL keycloak database health, verify connection settings, check network connectivity."
+
+  - name: keycloak_error_rate
+    interval: 1m
+    rules:
+      - alert: KeycloakHighErrorRate
+        expr: |
+          (
+            rate(count_over_time({source="keycloak", level="ERROR"}[5m])[5m:])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: keycloak
+          tier: identity_provider
+          component: application
+        annotations:
+          summary: "High error rate in Keycloak logs"
+          description: "Keycloak is experiencing an elevated error rate."
+          query: '{source="keycloak", level="ERROR"}'
+          action: "Review Keycloak error logs in Loki, check application health."
+
+# ============================================
+# Implementation Instructions
+# ============================================
+#
+# To enable these alerts with Loki Ruler:
+#
+# 1. Configure Loki Ruler in docker/loki/loki.yml:
+#    ruler:
+#      storage:
+#        type: local
+#        local:
+#          directory: /loki/rules
+#      rule_path: /tmp/loki/rules-temp
+#      alertmanager_url: http://alertmanager:9093
+#      ring:
+#        kvstore:
+#          store: inmemory
+#      enable_api: true
+#
+# 2. Create rules directory:
+#    mkdir -p docker/loki/rules
+#
+# 3. Move this file:
+#    mv docker/prometheus/alerts/keycloak-alerts-logql.yml.disabled \
+#       docker/loki/rules/keycloak-alerts.yml
+#
+# 4. Update docker-compose.yml to mount rules volume:
+#    loki:
+#      volumes:
+#        - ./docker/loki/rules:/loki/rules:ro
+#
+# 5. Restart Loki:
+#    docker-compose restart loki
+#
+# 6. Verify rules are loaded:
+#    curl http://localhost:3100/loki/api/v1/rules
+#
+

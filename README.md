@@ -7,7 +7,8 @@ A production-ready, multi-service Docker infrastructure for AI applications with
 This infrastructure provides a complete stack for building scalable AI applications:
 
 - **Frontend**: Vue 3 SPA with TypeScript and Tailwind CSS
-- **Database**: PostgreSQL 16 with optimized configuration
+- **Identity & Access**: Keycloak for SSO, authentication, and RBAC
+- **Database**: PostgreSQL 16 with pgAdmin web interface
 - **Cache**: Redis 7 with persistence and clustering support
 - **Message Queue**: RabbitMQ 3 with management UI
 - **Search Engine**: Elasticsearch 8 with security enabled
@@ -18,9 +19,9 @@ This infrastructure provides a complete stack for building scalable AI applicati
 
 Services are organized across isolated Docker networks following the principle of least privilege:
 
-- `frontend-net`: Vue.js SPA and nginx reverse proxy
+- `frontend-net`: Vue.js SPA, nginx reverse proxy, and pgAdmin UI
 - `backend-net`: Application microservices (Python, Node.js)
-- `data-net`: Databases and cache (PostgreSQL, Redis, Elasticsearch)
+- `database-net`: PostgreSQL database, pgAdmin, and postgres-exporter
 - `monitoring-net`: Observability stack (Prometheus, Grafana, Tempo, Loki)
 
 ## 🚀 Quick Start
@@ -57,6 +58,8 @@ Once started, access the services at:
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | **Frontend Application** | http://localhost/ | - |
+| **Keycloak Admin Console** | http://localhost/auth/ | admin / admin |
+| **pgAdmin (Database UI)** | http://localhost/pgadmin/ | admin@example.com / admin OR Keycloak SSO |
 | **Monitoring Dashboard** | http://localhost/monitoring/grafana/ | admin / admin |
 | Prometheus | http://localhost/monitoring/prometheus/ | - |
 | Tempo | http://localhost/monitoring/tempo/ | - |
@@ -66,7 +69,11 @@ Once started, access the services at:
 | Python API | http://localhost:8000 | - |
 | Node.js API | http://localhost:3001 | - |
 
-**Note**: All monitoring services are now accessible through nginx reverse proxy at `/monitoring/*` paths.
+**Note**: All monitoring services, Keycloak, and pgAdmin are accessible through nginx reverse proxy.
+
+**Keycloak Test Users**:
+- admin-dba / ChangeMe123! (DBA role)
+- devops-user / ChangeMe123! (DevOps role)
 
 ## 📁 Project Structure
 
@@ -106,6 +113,101 @@ AI_Infra/
 ├── .cursorrules               # AI coding assistant rules
 └── README.md                  # This file
 ```
+
+## 🗄️ Database Management
+
+### PostgreSQL Access
+
+The infrastructure includes PostgreSQL 16 as the primary database with pgAdmin for web-based administration.
+
+#### Connection Details
+
+**Internal Connection (from application services)**:
+```
+Host: postgres
+Port: 5432
+Database: app_db
+User: postgres
+Password: <from POSTGRES_PASSWORD in .env>
+Connection String: postgresql://postgres:password@postgres:5432/app_db
+```
+
+**Security Note**: PostgreSQL is only accessible on the internal `database-net` network (172.23.0.0/24). It is NOT exposed to external networks for security.
+
+#### pgAdmin Web Interface
+
+Access pgAdmin at: http://localhost/pgadmin/
+
+1. Login with credentials from `.env`:
+   - Email: `PGADMIN_DEFAULT_EMAIL` (default: admin@example.com)
+   - Password: `PGADMIN_DEFAULT_PASSWORD` (default: admin)
+
+2. The PostgreSQL server is pre-configured:
+   - Server name: "AI Infrastructure PostgreSQL"
+   - Connection details already set up
+   - Just enter the PostgreSQL password when prompted
+
+#### Database Operations
+
+**Open PostgreSQL shell (psql)**:
+```bash
+make psql
+```
+
+**Backup database**:
+```bash
+make db-backup
+```
+Backups are saved to `backups/backup_YYYYMMDD_HHMMSS.sql`
+
+**Restore database**:
+```bash
+make db-restore FILE=backups/backup_20231201_120000.sql
+```
+
+**View PostgreSQL logs**:
+```bash
+make logs-postgres
+```
+
+**View pgAdmin logs**:
+```bash
+make logs-pgadmin
+```
+
+**Open pgAdmin in browser**:
+```bash
+make pgadmin
+```
+
+### Database Monitoring
+
+PostgreSQL metrics are automatically collected and available in Grafana:
+
+1. Open Grafana: http://localhost/monitoring/grafana/
+2. Navigate to "PostgreSQL Overview" dashboard
+3. View metrics including:
+   - Active connections
+   - Transaction rate (commits/rollbacks)
+   - Cache hit ratio
+   - Query performance
+   - Database locks
+   - I/O activity
+
+### Database Configuration
+
+PostgreSQL is configured with production-ready settings:
+- Max connections: 200
+- Shared buffers: 256MB
+- Effective cache size: 1GB
+- Query logging for queries > 1 second
+- Connection/disconnection logging
+- Failed authentication logging
+- SCRAM-SHA-256 password encryption
+
+Configuration files:
+- `docker/postgres/postgresql.conf` - Main configuration
+- `docker/postgres/pg_hba.conf` - Client authentication
 
 ## 🛠️ Usage
 
@@ -300,8 +402,12 @@ docker-compose exec nodejs-service npm test
 
 ## 📖 Additional Documentation
 
+- [Keycloak Integration Guide](KEYCLOAK_INTEGRATION.md) - Complete SSO and authentication setup
 - [Environment Variables](ENV_VARIABLES.md) - Complete environment variable reference
 - [Architecture Documentation](ARCHITECTURE.md) - Detailed system architecture
+- [Nginx DNS Resolution](docker/README-NGINX-DNS.md) - Dynamic DNS resolution and service discovery
+- [Database Implementation](DATABASE_IMPLEMENTATION.md) - Database setup and configuration
+- [Logging Infrastructure](docker/README-LOGGING.md) - Centralized logging with Loki and Promtail
 - [Cursor Rules](.cursorrules) - AI coding assistant configuration
 
 ## 🐛 Troubleshooting
@@ -312,6 +418,16 @@ docker-compose exec nodejs-service npm test
 2. Verify port availability: `lsof -i :5432,6379,5672,9200`
 3. Check logs: `./scripts/logs.sh`
 4. Ensure sufficient resources: `docker system df`
+
+### Nginx DNS Resolution Issues
+
+If Nginx fails to start with "host not found in upstream" errors:
+1. **Cause**: This is normal - Nginx now uses runtime DNS resolution
+2. **Solution**: Services will become available as they start up
+3. **Verification**: Check that services are healthy: `docker-compose ps`
+4. **Details**: See [Nginx DNS Resolution Guide](docker/README-NGINX-DNS.md)
+
+The infrastructure is designed to handle services starting in any order. Nginx will automatically discover services as they become available.
 
 ### Database Connection Errors
 

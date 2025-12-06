@@ -1,0 +1,1269 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest" errors="0" failures="11" skipped="4" tests="37" time="2.832" timestamp="2025-12-06T14:11:39.868041" hostname="Mac"><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus" name="test_nginx_forwards_prometheus_api" time="0.263"><failure message="requests.exceptions.TooManyRedirects: Exceeded 30 redirects.">self = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus object at 0x10a718740&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_nginx_forwards_prometheus_api(self, docker_services_running, base_url):
+        """Test that Nginx forwards Prometheus API requests."""
+&gt;       response = requests.get(
+            f"{base_url}/monitoring/prometheus/api/v1/targets",
+            timeout=10
+        )
+
+base_url   = 'http://localhost'
+docker_services_running = True
+self       = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus object at 0x10a718740&gt;
+
+tests/integration/nginx/test_nginx_service_integration.py:45: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+venv/lib/python3.12/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+        kwargs     = {'timeout': 10}
+        params     = None
+        url        = 'http://localhost/monitoring/prometheus/api/v1/targets'
+venv/lib/python3.12/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+        kwargs     = {'params': None, 'timeout': 10}
+        method     = 'get'
+        session    = &lt;requests.sessions.Session object at 0x10a78d2b0&gt;
+        url        = 'http://localhost/monitoring/prometheus/api/v1/targets'
+venv/lib/python3.12/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+        allow_redirects = True
+        auth       = None
+        cert       = None
+        cookies    = None
+        data       = None
+        files      = None
+        headers    = None
+        hooks      = None
+        json       = None
+        method     = 'get'
+        params     = None
+        prep       = &lt;PreparedRequest [GET]&gt;
+        proxies    = {}
+        req        = &lt;Request [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10a78d2b0&gt;
+        send_kwargs = {'allow_redirects': True,
+ 'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        settings   = {'cert': None, 'proxies': OrderedDict(), 'stream': False, 'verify': True}
+        stream     = None
+        timeout    = 10
+        url        = 'http://localhost/monitoring/prometheus/api/v1/targets'
+        verify     = None
+venv/lib/python3.12/site-packages/requests/sessions.py:725: in send
+    history = [resp for resp in gen]
+        adapter    = &lt;requests.adapters.HTTPAdapter object at 0x10a78d910&gt;
+        allow_redirects = True
+        elapsed    = 0.005552053451538086
+        gen        = &lt;generator object SessionRedirectMixin.resolve_redirects at 0x10a2ebd30&gt;
+        hooks      = {'response': []}
+        kwargs     = {'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        r          = &lt;Response [302]&gt;
+        request    = &lt;PreparedRequest [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10a78d2b0&gt;
+        start      = 1765048301.633185
+        stream     = False
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;requests.sessions.Session object at 0x10a78d2b0&gt;, resp = &lt;Response [302]&gt;, req = &lt;PreparedRequest [GET]&gt;
+stream = False, timeout = 10, verify = True, cert = None, proxies = OrderedDict(), yield_requests = False, adapter_kwargs = {}
+hist = [&lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, ...]
+url = '/monitoring/prometheus/query', previous_fragment = '', prepared_request = &lt;PreparedRequest [GET]&gt;
+parsed = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+
+    def resolve_redirects(
+        self,
+        resp,
+        req,
+        stream=False,
+        timeout=None,
+        verify=True,
+        cert=None,
+        proxies=None,
+        yield_requests=False,
+        **adapter_kwargs,
+    ):
+        """Receives a Response. Returns a generator of Responses or Requests."""
+    
+        hist = []  # keep track of history
+    
+        url = self.get_redirect_target(resp)
+        previous_fragment = urlparse(req.url).fragment
+        while url:
+            prepared_request = req.copy()
+    
+            # Update history and keep track of redirects.
+            # resp.history must ignore the original request in this loop
+            hist.append(resp)
+            resp.history = hist[1:]
+    
+            try:
+                resp.content  # Consume socket so it can be released
+            except (ChunkedEncodingError, ContentDecodingError, RuntimeError):
+                resp.raw.read(decode_content=False)
+    
+            if len(resp.history) &gt;= self.max_redirects:
+&gt;               raise TooManyRedirects(
+                    f"Exceeded {self.max_redirects} redirects.", response=resp
+                )
+E               requests.exceptions.TooManyRedirects: Exceeded 30 redirects.
+
+adapter_kwargs = {}
+cert       = None
+header     = 'Transfer-Encoding'
+headers    = {'User-Agent': 'python-requests/2.31.0', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'}
+hist       = [&lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;]
+parsed     = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+prepared_request = &lt;PreparedRequest [GET]&gt;
+previous_fragment = ''
+proxies    = OrderedDict()
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+req        = &lt;PreparedRequest [GET]&gt;
+resp       = &lt;Response [302]&gt;
+rewindable = False
+self       = &lt;requests.sessions.Session object at 0x10a78d2b0&gt;
+stream     = False
+timeout    = 10
+url        = '/monitoring/prometheus/query'
+verify     = True
+yield_requests = False
+
+venv/lib/python3.12/site-packages/requests/sessions.py:191: TooManyRedirects</failure></testcase><testcase classname="tests.integration.auth.test_keycloak_integration.TestKeycloakBasicFunctionality" name="test_keycloak_token_endpoint_exists" time="0.541" /><testcase classname="tests.integration.monitoring.test_prometheus_integration.TestTempoIntegration" name="test_tempo_exposes_metrics" time="0.192" /><testcase classname="tests.integration.monitoring.test_prometheus_integration.TestLokiIntegration" name="test_loki_ready_endpoint" time="0.192"><failure message="assert 503 == 200&#10; +  where 503 = &lt;Response [503]&gt;.status_code">self = &lt;tests.integration.monitoring.test_prometheus_integration.TestLokiIntegration object at 0x10a09aed0&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_loki_ready_endpoint(self, docker_services_running, base_url):
+        """Test that Loki ready endpoint works."""
+        response = requests.get(
+            f"{base_url}/monitoring/loki/ready",
+            timeout=10
+        )
+&gt;       assert response.status_code == 200
+E       assert 503 == 200
+E        +  where 503 = &lt;Response [503]&gt;.status_code
+
+base_url   = 'http://localhost'
+docker_services_running = True
+response   = &lt;Response [503]&gt;
+self       = &lt;tests.integration.monitoring.test_prometheus_integration.TestLokiIntegration object at 0x10a09aed0&gt;
+
+tests/integration/monitoring/test_prometheus_integration.py:102: AssertionError</failure></testcase><testcase classname="tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping" name="test_prometheus_has_active_targets" time="0.264"><failure message="requests.exceptions.TooManyRedirects: Exceeded 30 redirects.">self = &lt;tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping object at 0x10c26a600&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_prometheus_has_active_targets(self, docker_services_running, base_url):
+        """Test that Prometheus has active scrape targets."""
+&gt;       response = requests.get(
+            f"{base_url}/monitoring/prometheus/api/v1/targets",
+            timeout=10
+        )
+
+base_url   = 'http://localhost'
+docker_services_running = True
+self       = &lt;tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping object at 0x10c26a600&gt;
+
+tests/integration/monitoring/test_prometheus_integration.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+venv/lib/python3.12/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+        kwargs     = {'timeout': 10}
+        params     = None
+        url        = 'http://localhost/monitoring/prometheus/api/v1/targets'
+venv/lib/python3.12/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+        kwargs     = {'params': None, 'timeout': 10}
+        method     = 'get'
+        session    = &lt;requests.sessions.Session object at 0x10c3013d0&gt;
+        url        = 'http://localhost/monitoring/prometheus/api/v1/targets'
+venv/lib/python3.12/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+        allow_redirects = True
+        auth       = None
+        cert       = None
+        cookies    = None
+        data       = None
+        files      = None
+        headers    = None
+        hooks      = None
+        json       = None
+        method     = 'get'
+        params     = None
+        prep       = &lt;PreparedRequest [GET]&gt;
+        proxies    = {}
+        req        = &lt;Request [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10c3013d0&gt;
+        send_kwargs = {'allow_redirects': True,
+ 'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        settings   = {'cert': None, 'proxies': OrderedDict(), 'stream': False, 'verify': True}
+        stream     = None
+        timeout    = 10
+        url        = 'http://localhost/monitoring/prometheus/api/v1/targets'
+        verify     = None
+venv/lib/python3.12/site-packages/requests/sessions.py:725: in send
+    history = [resp for resp in gen]
+        adapter    = &lt;requests.adapters.HTTPAdapter object at 0x10c300aa0&gt;
+        allow_redirects = True
+        elapsed    = 0.00471806526184082
+        gen        = &lt;generator object SessionRedirectMixin.resolve_redirects at 0x10be5fd30&gt;
+        hooks      = {'response': []}
+        kwargs     = {'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        r          = &lt;Response [302]&gt;
+        request    = &lt;PreparedRequest [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10c3013d0&gt;
+        start      = 1765048301.634017
+        stream     = False
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;requests.sessions.Session object at 0x10c3013d0&gt;, resp = &lt;Response [302]&gt;, req = &lt;PreparedRequest [GET]&gt;
+stream = False, timeout = 10, verify = True, cert = None, proxies = OrderedDict(), yield_requests = False, adapter_kwargs = {}
+hist = [&lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, ...]
+url = '/monitoring/prometheus/query', previous_fragment = '', prepared_request = &lt;PreparedRequest [GET]&gt;
+parsed = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+
+    def resolve_redirects(
+        self,
+        resp,
+        req,
+        stream=False,
+        timeout=None,
+        verify=True,
+        cert=None,
+        proxies=None,
+        yield_requests=False,
+        **adapter_kwargs,
+    ):
+        """Receives a Response. Returns a generator of Responses or Requests."""
+    
+        hist = []  # keep track of history
+    
+        url = self.get_redirect_target(resp)
+        previous_fragment = urlparse(req.url).fragment
+        while url:
+            prepared_request = req.copy()
+    
+            # Update history and keep track of redirects.
+            # resp.history must ignore the original request in this loop
+            hist.append(resp)
+            resp.history = hist[1:]
+    
+            try:
+                resp.content  # Consume socket so it can be released
+            except (ChunkedEncodingError, ContentDecodingError, RuntimeError):
+                resp.raw.read(decode_content=False)
+    
+            if len(resp.history) &gt;= self.max_redirects:
+&gt;               raise TooManyRedirects(
+                    f"Exceeded {self.max_redirects} redirects.", response=resp
+                )
+E               requests.exceptions.TooManyRedirects: Exceeded 30 redirects.
+
+adapter_kwargs = {}
+cert       = None
+header     = 'Transfer-Encoding'
+headers    = {'User-Agent': 'python-requests/2.31.0', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'}
+hist       = [&lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;]
+parsed     = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+prepared_request = &lt;PreparedRequest [GET]&gt;
+previous_fragment = ''
+proxies    = OrderedDict()
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+req        = &lt;PreparedRequest [GET]&gt;
+resp       = &lt;Response [302]&gt;
+rewindable = False
+self       = &lt;requests.sessions.Session object at 0x10c3013d0&gt;
+stream     = False
+timeout    = 10
+url        = '/monitoring/prometheus/query'
+verify     = True
+yield_requests = False
+
+venv/lib/python3.12/site-packages/requests/sessions.py:191: TooManyRedirects</failure></testcase><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToFrontend" name="test_nginx_forwards_frontend_assets" time="0.191" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToGrafana" name="test_nginx_routes_to_grafana" time="0.192" /><testcase classname="tests.integration.auth.test_keycloak_integration.TestKeycloakNginxIntegration" name="test_keycloak_admin_console_accessible" time="0.967" /><testcase classname="tests.integration.auth.test_keycloak_integration.TestKeycloakBasicFunctionality" name="test_keycloak_master_realm_accessible" time="0.750" /><testcase classname="tests.integration.monitoring.test_prometheus_integration.TestPrometheusGrafanaIntegration" name="test_grafana_can_reach_prometheus" time="0.192" /><testcase classname="tests.integration.database.test_postgres_integration.TestKeycloakDatabase" name="test_keycloak_can_authenticate" time="0.750" /><testcase classname="tests.integration.database.test_postgres_integration.TestPostgresExporter" name="test_postgres_metrics_available" time="0.263"><failure message="requests.exceptions.TooManyRedirects: Exceeded 30 redirects.">self = &lt;tests.integration.database.test_postgres_integration.TestPostgresExporter object at 0x10a835e50&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_postgres_metrics_available(self, docker_services_running, base_url):
+        """Test that PostgreSQL metrics are exposed."""
+        import requests
+    
+&gt;       response = requests.get(
+            f"{base_url}/monitoring/prometheus/api/v1/query",
+            params={"query": "pg_up"},
+            timeout=10
+        )
+
+base_url   = 'http://localhost'
+docker_services_running = True
+requests   = &lt;module 'requests' from '/Users/nicolaslallier/Dev Nick/AI_Infra/venv/lib/python3.12/site-packages/requests/__init__.py'&gt;
+self       = &lt;tests.integration.database.test_postgres_integration.TestPostgresExporter object at 0x10a835e50&gt;
+
+tests/integration/database/test_postgres_integration.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+venv/lib/python3.12/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+        kwargs     = {'timeout': 10}
+        params     = {'query': 'pg_up'}
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+venv/lib/python3.12/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+        kwargs     = {'params': {'query': 'pg_up'}, 'timeout': 10}
+        method     = 'get'
+        session    = &lt;requests.sessions.Session object at 0x10acad2e0&gt;
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+venv/lib/python3.12/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+        allow_redirects = True
+        auth       = None
+        cert       = None
+        cookies    = None
+        data       = None
+        files      = None
+        headers    = None
+        hooks      = None
+        json       = None
+        method     = 'get'
+        params     = {'query': 'pg_up'}
+        prep       = &lt;PreparedRequest [GET]&gt;
+        proxies    = {}
+        req        = &lt;Request [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10acad2e0&gt;
+        send_kwargs = {'allow_redirects': True,
+ 'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        settings   = {'cert': None, 'proxies': OrderedDict(), 'stream': False, 'verify': True}
+        stream     = None
+        timeout    = 10
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+        verify     = None
+venv/lib/python3.12/site-packages/requests/sessions.py:725: in send
+    history = [resp for resp in gen]
+        adapter    = &lt;requests.adapters.HTTPAdapter object at 0x10acacec0&gt;
+        allow_redirects = True
+        elapsed    = 0.00415802001953125
+        gen        = &lt;generator object SessionRedirectMixin.resolve_redirects at 0x10a80fd30&gt;
+        hooks      = {'response': []}
+        kwargs     = {'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        r          = &lt;Response [302]&gt;
+        request    = &lt;PreparedRequest [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10acad2e0&gt;
+        start      = 1765048301.6356359
+        stream     = False
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;requests.sessions.Session object at 0x10acad2e0&gt;, resp = &lt;Response [302]&gt;, req = &lt;PreparedRequest [GET]&gt;
+stream = False, timeout = 10, verify = True, cert = None, proxies = OrderedDict(), yield_requests = False, adapter_kwargs = {}
+hist = [&lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, ...]
+url = '/monitoring/prometheus/query', previous_fragment = '', prepared_request = &lt;PreparedRequest [GET]&gt;
+parsed = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+
+    def resolve_redirects(
+        self,
+        resp,
+        req,
+        stream=False,
+        timeout=None,
+        verify=True,
+        cert=None,
+        proxies=None,
+        yield_requests=False,
+        **adapter_kwargs,
+    ):
+        """Receives a Response. Returns a generator of Responses or Requests."""
+    
+        hist = []  # keep track of history
+    
+        url = self.get_redirect_target(resp)
+        previous_fragment = urlparse(req.url).fragment
+        while url:
+            prepared_request = req.copy()
+    
+            # Update history and keep track of redirects.
+            # resp.history must ignore the original request in this loop
+            hist.append(resp)
+            resp.history = hist[1:]
+    
+            try:
+                resp.content  # Consume socket so it can be released
+            except (ChunkedEncodingError, ContentDecodingError, RuntimeError):
+                resp.raw.read(decode_content=False)
+    
+            if len(resp.history) &gt;= self.max_redirects:
+&gt;               raise TooManyRedirects(
+                    f"Exceeded {self.max_redirects} redirects.", response=resp
+                )
+E               requests.exceptions.TooManyRedirects: Exceeded 30 redirects.
+
+adapter_kwargs = {}
+cert       = None
+header     = 'Transfer-Encoding'
+headers    = {'User-Agent': 'python-requests/2.31.0', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'}
+hist       = [&lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;]
+parsed     = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+prepared_request = &lt;PreparedRequest [GET]&gt;
+previous_fragment = ''
+proxies    = OrderedDict()
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+req        = &lt;PreparedRequest [GET]&gt;
+resp       = &lt;Response [302]&gt;
+rewindable = False
+self       = &lt;requests.sessions.Session object at 0x10acad2e0&gt;
+stream     = False
+timeout    = 10
+url        = '/monitoring/prometheus/query'
+verify     = True
+yield_requests = False
+
+venv/lib/python3.12/site-packages/requests/sessions.py:191: TooManyRedirects</failure></testcase><testcase classname="tests.integration.database.test_postgres_integration.TestPostgreSQLConnection" name="test_can_list_databases" time="0.189"><skipped type="pytest.skip" message="PostgreSQL not accessible">/Users/nicolaslallier/Dev Nick/AI_Infra/tests/integration/database/test_postgres_integration.py:31: PostgreSQL not accessible</skipped></testcase><testcase classname="tests.integration.database.test_postgres_integration.TestPostgreSQLConnection" name="test_can_connect_to_postgres" time="0.189"><skipped type="pytest.skip" message="PostgreSQL not accessible">/Users/nicolaslallier/Dev Nick/AI_Infra/tests/integration/database/test_postgres_integration.py:16: PostgreSQL not accessible</skipped></testcase><testcase classname="tests.integration.database.test_postgres_integration.TestPostgreSQLConnection" name="test_can_execute_query" time="0.001"><skipped type="pytest.skip" message="PostgreSQL not accessible">/Users/nicolaslallier/Dev Nick/AI_Infra/tests/integration/database/test_postgres_integration.py:21: PostgreSQL not accessible</skipped></testcase><testcase classname="tests.integration.database.test_postgres_integration.TestKeycloakDatabase" name="test_keycloak_schema_exists" time="0.001"><skipped type="pytest.skip" message="PostgreSQL not accessible">/Users/nicolaslallier/Dev Nick/AI_Infra/tests/integration/database/test_postgres_integration.py:48: PostgreSQL not accessible</skipped></testcase><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToFrontend" name="test_nginx_serves_frontend_html" time="0.004" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus" name="test_nginx_routes_to_prometheus" time="0.072"><failure message="requests.exceptions.TooManyRedirects: Exceeded 30 redirects.">self = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus object at 0x10881ca40&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_nginx_routes_to_prometheus(self, docker_services_running, base_url):
+        """Test that Nginx routes to Prometheus correctly."""
+&gt;       response = requests.get(
+            f"{base_url}/monitoring/prometheus/-/healthy",
+            timeout=10
+        )
+
+base_url   = 'http://localhost'
+docker_services_running = True
+self       = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus object at 0x10881ca40&gt;
+
+tests/integration/nginx/test_nginx_service_integration.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+venv/lib/python3.12/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+        kwargs     = {'timeout': 10}
+        params     = None
+        url        = 'http://localhost/monitoring/prometheus/-/healthy'
+venv/lib/python3.12/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+        kwargs     = {'params': None, 'timeout': 10}
+        method     = 'get'
+        session    = &lt;requests.sessions.Session object at 0x1083a6240&gt;
+        url        = 'http://localhost/monitoring/prometheus/-/healthy'
+venv/lib/python3.12/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+        allow_redirects = True
+        auth       = None
+        cert       = None
+        cookies    = None
+        data       = None
+        files      = None
+        headers    = None
+        hooks      = None
+        json       = None
+        method     = 'get'
+        params     = None
+        prep       = &lt;PreparedRequest [GET]&gt;
+        proxies    = {}
+        req        = &lt;Request [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x1083a6240&gt;
+        send_kwargs = {'allow_redirects': True,
+ 'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        settings   = {'cert': None, 'proxies': OrderedDict(), 'stream': False, 'verify': True}
+        stream     = None
+        timeout    = 10
+        url        = 'http://localhost/monitoring/prometheus/-/healthy'
+        verify     = None
+venv/lib/python3.12/site-packages/requests/sessions.py:725: in send
+    history = [resp for resp in gen]
+        adapter    = &lt;requests.adapters.HTTPAdapter object at 0x108327da0&gt;
+        allow_redirects = True
+        elapsed    = 0.0028450489044189453
+        gen        = &lt;generator object SessionRedirectMixin.resolve_redirects at 0x1089201d0&gt;
+        hooks      = {'response': []}
+        kwargs     = {'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        r          = &lt;Response [302]&gt;
+        request    = &lt;PreparedRequest [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x1083a6240&gt;
+        start      = 1765048301.650611
+        stream     = False
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;requests.sessions.Session object at 0x1083a6240&gt;, resp = &lt;Response [302]&gt;, req = &lt;PreparedRequest [GET]&gt;
+stream = False, timeout = 10, verify = True, cert = None, proxies = OrderedDict(), yield_requests = False, adapter_kwargs = {}
+hist = [&lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, ...]
+url = '/monitoring/prometheus/query', previous_fragment = '', prepared_request = &lt;PreparedRequest [GET]&gt;
+parsed = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+
+    def resolve_redirects(
+        self,
+        resp,
+        req,
+        stream=False,
+        timeout=None,
+        verify=True,
+        cert=None,
+        proxies=None,
+        yield_requests=False,
+        **adapter_kwargs,
+    ):
+        """Receives a Response. Returns a generator of Responses or Requests."""
+    
+        hist = []  # keep track of history
+    
+        url = self.get_redirect_target(resp)
+        previous_fragment = urlparse(req.url).fragment
+        while url:
+            prepared_request = req.copy()
+    
+            # Update history and keep track of redirects.
+            # resp.history must ignore the original request in this loop
+            hist.append(resp)
+            resp.history = hist[1:]
+    
+            try:
+                resp.content  # Consume socket so it can be released
+            except (ChunkedEncodingError, ContentDecodingError, RuntimeError):
+                resp.raw.read(decode_content=False)
+    
+            if len(resp.history) &gt;= self.max_redirects:
+&gt;               raise TooManyRedirects(
+                    f"Exceeded {self.max_redirects} redirects.", response=resp
+                )
+E               requests.exceptions.TooManyRedirects: Exceeded 30 redirects.
+
+adapter_kwargs = {}
+cert       = None
+header     = 'Transfer-Encoding'
+headers    = {'User-Agent': 'python-requests/2.31.0', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'}
+hist       = [&lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;]
+parsed     = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+prepared_request = &lt;PreparedRequest [GET]&gt;
+previous_fragment = ''
+proxies    = OrderedDict()
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+req        = &lt;PreparedRequest [GET]&gt;
+resp       = &lt;Response [302]&gt;
+rewindable = False
+self       = &lt;requests.sessions.Session object at 0x1083a6240&gt;
+stream     = False
+timeout    = 10
+url        = '/monitoring/prometheus/query'
+verify     = True
+yield_requests = False
+
+venv/lib/python3.12/site-packages/requests/sessions.py:191: TooManyRedirects</failure></testcase><testcase classname="tests.integration.monitoring.test_prometheus_integration.TestTempoIntegration" name="test_tempo_ready_endpoint" time="0.005"><failure message="assert 503 in [200, 204]&#10; +  where 503 = &lt;Response [503]&gt;.status_code">self = &lt;tests.integration.monitoring.test_prometheus_integration.TestTempoIntegration object at 0x10a09b080&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_tempo_ready_endpoint(self, docker_services_running, base_url):
+        """Test that Tempo ready endpoint works."""
+        response = requests.get(
+            f"{base_url}/monitoring/tempo/ready",
+            timeout=10
+        )
+&gt;       assert response.status_code in [200, 204]
+E       assert 503 in [200, 204]
+E        +  where 503 = &lt;Response [503]&gt;.status_code
+
+base_url   = 'http://localhost'
+docker_services_running = True
+response   = &lt;Response [503]&gt;
+self       = &lt;tests.integration.monitoring.test_prometheus_integration.TestTempoIntegration object at 0x10a09b080&gt;
+
+tests/integration/monitoring/test_prometheus_integration.py:116: AssertionError</failure></testcase><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToGrafana" name="test_nginx_grafana_api_accessible" time="0.004" /><testcase classname="tests.integration.monitoring.test_prometheus_integration.TestLokiIntegration" name="test_loki_can_query_labels" time="0.008" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToKeycloak" name="test_nginx_routes_to_keycloak" time="0.546" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToKeycloak" name="test_nginx_forwards_keycloak_wellknown" time="0.656" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToLoki" name="test_nginx_forwards_loki_api" time="0.005" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToLoki" name="test_nginx_routes_to_loki" time="0.004"><failure message="assert 503 == 200&#10; +  where 503 = &lt;Response [503]&gt;.status_code">self = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToLoki object at 0x108699610&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_nginx_routes_to_loki(self, docker_services_running, base_url):
+        """Test that Nginx routes to Loki correctly."""
+        response = requests.get(
+            f"{base_url}/monitoring/loki/ready",
+            timeout=10
+        )
+&gt;       assert response.status_code == 200
+E       assert 503 == 200
+E        +  where 503 = &lt;Response [503]&gt;.status_code
+
+base_url   = 'http://localhost'
+docker_services_running = True
+response   = &lt;Response [503]&gt;
+self       = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToLoki object at 0x108699610&gt;
+
+tests/integration/nginx/test_nginx_service_integration.py:126: AssertionError</failure></testcase><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToPgAdmin" name="test_nginx_routes_to_pgadmin" time="0.019" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToPgAdmin" name="test_nginx_pgadmin_script_name_header" time="0.018" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus" name="test_nginx_preserves_prometheus_query_params" time="0.048"><failure message="requests.exceptions.TooManyRedirects: Exceeded 30 redirects.">self = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus object at 0x10a718920&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_nginx_preserves_prometheus_query_params(self, docker_services_running, base_url):
+        """Test that Nginx preserves query parameters for Prometheus."""
+&gt;       response = requests.get(
+            f"{base_url}/monitoring/prometheus/api/v1/query",
+            params={"query": "up"},
+            timeout=10
+        )
+
+base_url   = 'http://localhost'
+docker_services_running = True
+self       = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToPrometheus object at 0x10a718920&gt;
+
+tests/integration/nginx/test_nginx_service_integration.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+venv/lib/python3.12/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+        kwargs     = {'timeout': 10}
+        params     = {'query': 'up'}
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+venv/lib/python3.12/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+        kwargs     = {'params': {'query': 'up'}, 'timeout': 10}
+        method     = 'get'
+        session    = &lt;requests.sessions.Session object at 0x10a7564e0&gt;
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+venv/lib/python3.12/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+        allow_redirects = True
+        auth       = None
+        cert       = None
+        cookies    = None
+        data       = None
+        files      = None
+        headers    = None
+        hooks      = None
+        json       = None
+        method     = 'get'
+        params     = {'query': 'up'}
+        prep       = &lt;PreparedRequest [GET]&gt;
+        proxies    = {}
+        req        = &lt;Request [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10a7564e0&gt;
+        send_kwargs = {'allow_redirects': True,
+ 'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        settings   = {'cert': None, 'proxies': OrderedDict(), 'stream': False, 'verify': True}
+        stream     = None
+        timeout    = 10
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+        verify     = None
+venv/lib/python3.12/site-packages/requests/sessions.py:725: in send
+    history = [resp for resp in gen]
+        adapter    = &lt;requests.adapters.HTTPAdapter object at 0x109829220&gt;
+        allow_redirects = True
+        elapsed    = 0.0021140575408935547
+        gen        = &lt;generator object SessionRedirectMixin.resolve_redirects at 0x10a81ba10&gt;
+        hooks      = {'response': []}
+        kwargs     = {'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        r          = &lt;Response [302]&gt;
+        request    = &lt;PreparedRequest [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10a7564e0&gt;
+        start      = 1765048301.7344651
+        stream     = False
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;requests.sessions.Session object at 0x10a7564e0&gt;, resp = &lt;Response [302]&gt;, req = &lt;PreparedRequest [GET]&gt;
+stream = False, timeout = 10, verify = True, cert = None, proxies = OrderedDict(), yield_requests = False, adapter_kwargs = {}
+hist = [&lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, ...]
+url = '/monitoring/prometheus/query', previous_fragment = '', prepared_request = &lt;PreparedRequest [GET]&gt;
+parsed = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+
+    def resolve_redirects(
+        self,
+        resp,
+        req,
+        stream=False,
+        timeout=None,
+        verify=True,
+        cert=None,
+        proxies=None,
+        yield_requests=False,
+        **adapter_kwargs,
+    ):
+        """Receives a Response. Returns a generator of Responses or Requests."""
+    
+        hist = []  # keep track of history
+    
+        url = self.get_redirect_target(resp)
+        previous_fragment = urlparse(req.url).fragment
+        while url:
+            prepared_request = req.copy()
+    
+            # Update history and keep track of redirects.
+            # resp.history must ignore the original request in this loop
+            hist.append(resp)
+            resp.history = hist[1:]
+    
+            try:
+                resp.content  # Consume socket so it can be released
+            except (ChunkedEncodingError, ContentDecodingError, RuntimeError):
+                resp.raw.read(decode_content=False)
+    
+            if len(resp.history) &gt;= self.max_redirects:
+&gt;               raise TooManyRedirects(
+                    f"Exceeded {self.max_redirects} redirects.", response=resp
+                )
+E               requests.exceptions.TooManyRedirects: Exceeded 30 redirects.
+
+adapter_kwargs = {}
+cert       = None
+header     = 'Transfer-Encoding'
+headers    = {'User-Agent': 'python-requests/2.31.0', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'}
+hist       = [&lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;]
+parsed     = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+prepared_request = &lt;PreparedRequest [GET]&gt;
+previous_fragment = ''
+proxies    = OrderedDict()
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+req        = &lt;PreparedRequest [GET]&gt;
+resp       = &lt;Response [302]&gt;
+rewindable = False
+self       = &lt;requests.sessions.Session object at 0x10a7564e0&gt;
+stream     = False
+timeout    = 10
+url        = '/monitoring/prometheus/query'
+verify     = True
+yield_requests = False
+
+venv/lib/python3.12/site-packages/requests/sessions.py:191: TooManyRedirects</failure></testcase><testcase classname="tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping" name="test_prometheus_scrapes_itself" time="0.048"><failure message="requests.exceptions.TooManyRedirects: Exceeded 30 redirects.">self = &lt;tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping object at 0x10a8368d0&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_prometheus_scrapes_itself(self, docker_services_running, base_url):
+        """Test that Prometheus scrapes its own metrics."""
+&gt;       response = requests.get(
+            f"{base_url}/monitoring/prometheus/api/v1/query",
+            params={"query": "prometheus_build_info"},
+            timeout=10
+        )
+
+base_url   = 'http://localhost'
+docker_services_running = True
+self       = &lt;tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping object at 0x10a8368d0&gt;
+
+tests/integration/monitoring/test_prometheus_integration.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+venv/lib/python3.12/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+        kwargs     = {'timeout': 10}
+        params     = {'query': 'prometheus_build_info'}
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+venv/lib/python3.12/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+        kwargs     = {'params': {'query': 'prometheus_build_info'}, 'timeout': 10}
+        method     = 'get'
+        session    = &lt;requests.sessions.Session object at 0x10ac762a0&gt;
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+venv/lib/python3.12/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+        allow_redirects = True
+        auth       = None
+        cert       = None
+        cookies    = None
+        data       = None
+        files      = None
+        headers    = None
+        hooks      = None
+        json       = None
+        method     = 'get'
+        params     = {'query': 'prometheus_build_info'}
+        prep       = &lt;PreparedRequest [GET]&gt;
+        proxies    = {}
+        req        = &lt;Request [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10ac762a0&gt;
+        send_kwargs = {'allow_redirects': True,
+ 'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        settings   = {'cert': None, 'proxies': OrderedDict(), 'stream': False, 'verify': True}
+        stream     = None
+        timeout    = 10
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+        verify     = None
+venv/lib/python3.12/site-packages/requests/sessions.py:725: in send
+    history = [resp for resp in gen]
+        adapter    = &lt;requests.adapters.HTTPAdapter object at 0x10ac75f70&gt;
+        allow_redirects = True
+        elapsed    = 0.002054929733276367
+        gen        = &lt;generator object SessionRedirectMixin.resolve_redirects at 0x10ad3ba10&gt;
+        hooks      = {'response': []}
+        kwargs     = {'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        r          = &lt;Response [302]&gt;
+        request    = &lt;PreparedRequest [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10ac762a0&gt;
+        start      = 1765048301.734574
+        stream     = False
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;requests.sessions.Session object at 0x10ac762a0&gt;, resp = &lt;Response [302]&gt;, req = &lt;PreparedRequest [GET]&gt;
+stream = False, timeout = 10, verify = True, cert = None, proxies = OrderedDict(), yield_requests = False, adapter_kwargs = {}
+hist = [&lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, ...]
+url = '/monitoring/prometheus/query', previous_fragment = '', prepared_request = &lt;PreparedRequest [GET]&gt;
+parsed = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+
+    def resolve_redirects(
+        self,
+        resp,
+        req,
+        stream=False,
+        timeout=None,
+        verify=True,
+        cert=None,
+        proxies=None,
+        yield_requests=False,
+        **adapter_kwargs,
+    ):
+        """Receives a Response. Returns a generator of Responses or Requests."""
+    
+        hist = []  # keep track of history
+    
+        url = self.get_redirect_target(resp)
+        previous_fragment = urlparse(req.url).fragment
+        while url:
+            prepared_request = req.copy()
+    
+            # Update history and keep track of redirects.
+            # resp.history must ignore the original request in this loop
+            hist.append(resp)
+            resp.history = hist[1:]
+    
+            try:
+                resp.content  # Consume socket so it can be released
+            except (ChunkedEncodingError, ContentDecodingError, RuntimeError):
+                resp.raw.read(decode_content=False)
+    
+            if len(resp.history) &gt;= self.max_redirects:
+&gt;               raise TooManyRedirects(
+                    f"Exceeded {self.max_redirects} redirects.", response=resp
+                )
+E               requests.exceptions.TooManyRedirects: Exceeded 30 redirects.
+
+adapter_kwargs = {}
+cert       = None
+header     = 'Transfer-Encoding'
+headers    = {'User-Agent': 'python-requests/2.31.0', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'}
+hist       = [&lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;]
+parsed     = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+prepared_request = &lt;PreparedRequest [GET]&gt;
+previous_fragment = ''
+proxies    = OrderedDict()
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+req        = &lt;PreparedRequest [GET]&gt;
+resp       = &lt;Response [302]&gt;
+rewindable = False
+self       = &lt;requests.sessions.Session object at 0x10ac762a0&gt;
+stream     = False
+timeout    = 10
+url        = '/monitoring/prometheus/query'
+verify     = True
+yield_requests = False
+
+venv/lib/python3.12/site-packages/requests/sessions.py:191: TooManyRedirects</failure></testcase><testcase classname="tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping" name="test_prometheus_can_query_metrics" time="0.048"><failure message="requests.exceptions.TooManyRedirects: Exceeded 30 redirects.">self = &lt;tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping object at 0x10c26a7e0&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_prometheus_can_query_metrics(self, docker_services_running, base_url):
+        """Test that Prometheus can query collected metrics."""
+        queries = [
+            "up",
+            "process_cpu_seconds_total",
+            "go_goroutines",
+            "prometheus_tsdb_head_samples_appended_total",
+        ]
+    
+        for query in queries:
+&gt;           response = requests.get(
+                f"{base_url}/monitoring/prometheus/api/v1/query",
+                params={"query": query},
+                timeout=10
+            )
+
+base_url   = 'http://localhost'
+docker_services_running = True
+queries    = ['up',
+ 'process_cpu_seconds_total',
+ 'go_goroutines',
+ 'prometheus_tsdb_head_samples_appended_total']
+query      = 'up'
+self       = &lt;tests.integration.monitoring.test_prometheus_integration.TestPrometheusMetricsScraping object at 0x10c26a7e0&gt;
+
+tests/integration/monitoring/test_prometheus_integration.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+venv/lib/python3.12/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+        kwargs     = {'timeout': 10}
+        params     = {'query': 'up'}
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+venv/lib/python3.12/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+        kwargs     = {'params': {'query': 'up'}, 'timeout': 10}
+        method     = 'get'
+        session    = &lt;requests.sessions.Session object at 0x10c2e14c0&gt;
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+venv/lib/python3.12/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+        allow_redirects = True
+        auth       = None
+        cert       = None
+        cookies    = None
+        data       = None
+        files      = None
+        headers    = None
+        hooks      = None
+        json       = None
+        method     = 'get'
+        params     = {'query': 'up'}
+        prep       = &lt;PreparedRequest [GET]&gt;
+        proxies    = {}
+        req        = &lt;Request [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10c2e14c0&gt;
+        send_kwargs = {'allow_redirects': True,
+ 'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        settings   = {'cert': None, 'proxies': OrderedDict(), 'stream': False, 'verify': True}
+        stream     = None
+        timeout    = 10
+        url        = 'http://localhost/monitoring/prometheus/api/v1/query'
+        verify     = None
+venv/lib/python3.12/site-packages/requests/sessions.py:725: in send
+    history = [resp for resp in gen]
+        adapter    = &lt;requests.adapters.HTTPAdapter object at 0x10c3a4a10&gt;
+        allow_redirects = True
+        elapsed    = 0.0023009777069091797
+        gen        = &lt;generator object SessionRedirectMixin.resolve_redirects at 0x10c38fa10&gt;
+        hooks      = {'response': []}
+        kwargs     = {'cert': None,
+ 'proxies': OrderedDict(),
+ 'stream': False,
+ 'timeout': 10,
+ 'verify': True}
+        r          = &lt;Response [302]&gt;
+        request    = &lt;PreparedRequest [GET]&gt;
+        self       = &lt;requests.sessions.Session object at 0x10c2e14c0&gt;
+        start      = 1765048301.734339
+        stream     = False
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;requests.sessions.Session object at 0x10c2e14c0&gt;, resp = &lt;Response [302]&gt;, req = &lt;PreparedRequest [GET]&gt;
+stream = False, timeout = 10, verify = True, cert = None, proxies = OrderedDict(), yield_requests = False, adapter_kwargs = {}
+hist = [&lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, &lt;Response [302]&gt;, ...]
+url = '/monitoring/prometheus/query', previous_fragment = '', prepared_request = &lt;PreparedRequest [GET]&gt;
+parsed = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+
+    def resolve_redirects(
+        self,
+        resp,
+        req,
+        stream=False,
+        timeout=None,
+        verify=True,
+        cert=None,
+        proxies=None,
+        yield_requests=False,
+        **adapter_kwargs,
+    ):
+        """Receives a Response. Returns a generator of Responses or Requests."""
+    
+        hist = []  # keep track of history
+    
+        url = self.get_redirect_target(resp)
+        previous_fragment = urlparse(req.url).fragment
+        while url:
+            prepared_request = req.copy()
+    
+            # Update history and keep track of redirects.
+            # resp.history must ignore the original request in this loop
+            hist.append(resp)
+            resp.history = hist[1:]
+    
+            try:
+                resp.content  # Consume socket so it can be released
+            except (ChunkedEncodingError, ContentDecodingError, RuntimeError):
+                resp.raw.read(decode_content=False)
+    
+            if len(resp.history) &gt;= self.max_redirects:
+&gt;               raise TooManyRedirects(
+                    f"Exceeded {self.max_redirects} redirects.", response=resp
+                )
+E               requests.exceptions.TooManyRedirects: Exceeded 30 redirects.
+
+adapter_kwargs = {}
+cert       = None
+header     = 'Transfer-Encoding'
+headers    = {'User-Agent': 'python-requests/2.31.0', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'}
+hist       = [&lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;,
+ &lt;Response [302]&gt;]
+parsed     = ParseResult(scheme='', netloc='', path='/monitoring/prometheus/query', params='', query='', fragment='')
+prepared_request = &lt;PreparedRequest [GET]&gt;
+previous_fragment = ''
+proxies    = OrderedDict()
+purged_headers = ('Content-Length', 'Content-Type', 'Transfer-Encoding')
+req        = &lt;PreparedRequest [GET]&gt;
+resp       = &lt;Response [302]&gt;
+rewindable = False
+self       = &lt;requests.sessions.Session object at 0x10c2e14c0&gt;
+stream     = False
+timeout    = 10
+url        = '/monitoring/prometheus/query'
+verify     = True
+yield_requests = False
+
+venv/lib/python3.12/site-packages/requests/sessions.py:191: TooManyRedirects</failure></testcase><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxToTempo" name="test_nginx_routes_to_tempo" time="0.003"><failure message="assert 503 in [200, 204]&#10; +  where 503 = &lt;Response [503]&gt;.status_code">self = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToTempo object at 0x10881daf0&gt;
+docker_services_running = True, base_url = 'http://localhost'
+
+    def test_nginx_routes_to_tempo(self, docker_services_running, base_url):
+        """Test that Nginx routes to Tempo correctly."""
+        response = requests.get(
+            f"{base_url}/monitoring/tempo/ready",
+            timeout=10
+        )
+&gt;       assert response.status_code in [200, 204]
+E       assert 503 in [200, 204]
+E        +  where 503 = &lt;Response [503]&gt;.status_code
+
+base_url   = 'http://localhost'
+docker_services_running = True
+response   = &lt;Response [503]&gt;
+self       = &lt;tests.integration.nginx.test_nginx_service_integration.TestNginxToTempo object at 0x10881daf0&gt;
+
+tests/integration/nginx/test_nginx_service_integration.py:150: AssertionError</failure></testcase><testcase classname="tests.integration.auth.test_keycloak_integration.TestKeycloakNginxIntegration" name="test_keycloak_accessible_through_nginx" time="0.425" /><testcase classname="tests.integration.database.test_postgres_integration.TestGrafanaDatabase" name="test_grafana_database_healthy" time="0.004" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxHealthCheck" name="test_health_endpoint_responds" time="0.003" /><testcase classname="tests.integration.auth.test_keycloak_integration.TestKeycloakBasicFunctionality" name="test_keycloak_openid_configuration" time="0.108" /><testcase classname="tests.integration.nginx.test_nginx_service_integration.TestNginxHealthCheck" name="test_health_endpoint_fast_response" time="0.007" /><testcase classname="tests.integration.auth.test_keycloak_integration.TestKeycloakDatabaseIntegration" name="test_keycloak_persists_data" time="0.006" /></testsuite></testsuites>

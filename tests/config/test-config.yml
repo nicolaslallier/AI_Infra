@@ -1,0 +1,173 @@
+# ============================================
+# Test Configuration
+# ============================================
+# Centralized configuration for all tests
+
+# Base URLs
+base_urls:
+  nginx: "http://localhost"
+  frontend: "http://localhost:3000"
+  grafana: "http://localhost/monitoring/grafana"
+  prometheus: "http://localhost/monitoring/prometheus"
+  keycloak: "http://localhost/auth"
+  pgadmin: "http://localhost/pgadmin"
+  tempo: "http://localhost/monitoring/tempo"
+  loki: "http://localhost/monitoring/loki"
+
+# Service ports (internal)
+ports:
+  nginx: 80
+  frontend: 80
+  grafana: 3000
+  prometheus: 9090
+  keycloak: 8080
+  postgres: 5432
+  pgadmin: 80
+  tempo: 3200
+  loki: 3100
+  promtail: 9080
+
+# Test credentials
+credentials:
+  grafana:
+    username: "admin"
+    password: "admin"
+  keycloak:
+    admin_username: "admin"
+    admin_password: "admin"
+    test_user_username: "test-user"
+    test_user_password: "Test123!"
+    dba_username: "admin-dba"
+    dba_password: "ChangeMe123!"
+  pgadmin:
+    email: "admin@example.com"
+    password: "admin"
+  postgres:
+    username: "postgres"
+    password: "postgres"
+    database: "app_db"
+    test_username: "test_user"
+    test_password: "test_password"
+    test_database: "test_db"
+
+# Timeout settings (seconds)
+timeouts:
+  service_startup: 90
+  health_check: 30
+  api_request: 10
+  database_query: 5
+  page_load: 30
+  authentication: 15
+  
+# Retry settings
+retries:
+  max_attempts: 3
+  delay_seconds: 2
+  backoff_multiplier: 2
+
+# Performance thresholds
+performance:
+  response_time:
+    p50: 200  # milliseconds
+    p95: 500
+    p99: 1000
+  throughput:
+    min_rps: 100  # requests per second
+  error_rate:
+    max_percentage: 1.0
+  resource_usage:
+    max_cpu_percent: 80
+    max_memory_percent: 85
+
+# Coverage thresholds
+coverage:
+  unit_tests:
+    lines: 95
+    branches: 90
+    functions: 95
+  integration_tests:
+    endpoints: 100
+    critical_paths: 100
+
+# Test data
+test_data:
+  sample_users: 10
+  sample_metrics: 100
+  sample_logs: 1000
+  sample_traces: 50
+
+# Feature flags
+features:
+  enable_slow_tests: false
+  enable_performance_tests: false
+  enable_visual_regression: true
+  enable_accessibility_tests: true
+  enable_security_tests: true
+
+# Docker settings
+docker:
+  network: "ai_infra_test-net"
+  compose_file: "docker-compose.test.yml"
+  cleanup_after_tests: true
+  preserve_on_failure: true
+
+# Reporting
+reporting:
+  output_dir: "tests/reports"
+  formats:
+    - html
+    - json
+    - xml
+    - junit
+  screenshot_on_failure: true
+  video_on_failure: true
+  trace_on_failure: true
+
+# Parallel execution
+parallel:
+  enabled: true
+  max_workers: 4
+  per_test_timeout: 300
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "tests/reports/test-execution.log"
+  console: true
+
+# Database settings
+database:
+  reset_between_tests: true
+  seed_data_file: "tests/fixtures/seed-data.sql"
+  backup_before_tests: true
+
+# API testing
+api:
+  base_timeout: 10
+  max_retries: 3
+  verify_ssl: false
+  follow_redirects: true
+
+# Browser settings (Playwright)
+browser:
+  headless: true
+  slow_mo: 0
+  viewport:
+    width: 1920
+    height: 1080
+  browsers:
+    - chromium
+    - firefox
+    - webkit
+  record_video: false
+  record_trace: false
+
+# Monitoring assertions
+monitoring:
+  check_metrics_exist: true
+  check_logs_exist: true
+  check_traces_exist: true
+  verify_alert_rules: true
+  verify_dashboards: true
+

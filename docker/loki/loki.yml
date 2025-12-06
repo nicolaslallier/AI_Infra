@@ -3,6 +3,7 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
+  log_level: info
 
 common:
   instance_addr: 127.0.0.1
@@ -15,6 +16,15 @@ common:
   ring:
     kvstore:
       store: inmemory
+
+# Compactor configuration for log retention
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: filesystem
 
 query_range:
   results_cache:
@@ -35,16 +45,40 @@ schema_config:
 
 ruler:
   alertmanager_url: http://localhost:9093
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
 
 limits_config:
   reject_old_samples: true
   reject_old_samples_max_age: 168h
   max_cache_freshness_per_query: 10m
   split_queries_by_interval: 15m
-  ingestion_rate_mb: 10
-  ingestion_burst_size_mb: 20
-  per_stream_rate_limit: 5MB
-  per_stream_rate_limit_burst: 15MB
+  ingestion_rate_mb: 15
+  ingestion_burst_size_mb: 30
+  per_stream_rate_limit: 10MB
+  per_stream_rate_limit_burst: 20MB
+  max_query_length: 721h  # 30 days
+  max_streams_per_user: 10000
+  max_global_streams_per_user: 50000
+  
+  # Retention policies
+  retention_period: 720h  # 30 days default
 
 analytics:
   reporting_enabled: false
+
+# Table manager for retention
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 720h  # 30 days default
+
+# Query limits
+query_scheduler:
+  max_outstanding_requests_per_tenant: 2048
+
+# Frontend configuration for query splitting
+frontend:
+  compress_responses: true
+  max_outstanding_per_tenant: 2048

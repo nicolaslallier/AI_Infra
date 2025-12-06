@@ -1,0 +1,351 @@
+# ============================================
+# Database Logs Alert Rules
+# PostgreSQL and pgAdmin Monitoring
+# AI Infrastructure Project
+# ============================================
+
+groups:
+  # ==========================================
+  # PostgreSQL Connection Alerts
+  # ==========================================
+  - name: postgres_connection_alerts
+    interval: 1m
+    rules:
+      - alert: PostgreSQLConnectionFailureRateHigh
+        expr: |
+          (
+            sum(rate({source="postgres", security_event="auth_failure"}[5m]))
+            /
+            sum(rate({source="postgres", log_type="connection"}[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: postgres
+          category: connection
+          compliance: security
+        annotations:
+          summary: "PostgreSQL connection failure rate is above 10%"
+          description: |
+            PostgreSQL connection failure rate is {{ $value | humanizePercentage }} over the last 5 minutes.
+            This may indicate authentication issues, network problems, or a potential security attack.
+          impact: "Users may be unable to connect to the database"
+          action: "Check authentication logs, verify credentials, and review network connectivity"
+          runbook_url: "https://docs.example.com/runbooks/postgres-connection-failures"
+
+      - alert: PostgreSQLConnectionFailureSpike
+        expr: |
+          sum(rate({source="postgres", security_event="auth_failure"}[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+          component: postgres
+          category: security
+          compliance: security_incident
+        annotations:
+          summary: "Spike in PostgreSQL authentication failures detected"
+          description: |
+            More than 5 authentication failures per second detected over the last 2 minutes.
+            This could indicate a brute-force attack or credential compromise.
+          impact: "Potential security breach in progress"
+          action: "Immediately investigate source IPs, block suspicious sources, and review security logs"
+          runbook_url: "https://docs.example.com/runbooks/postgres-security-incident"
+
+  # ==========================================
+  # PostgreSQL Performance Alerts
+  # ==========================================
+  - name: postgres_performance_alerts
+    interval: 1m
+    rules:
+      - alert: PostgreSQLSlowQueryThresholdExceeded
+        expr: |
+          sum(rate({source="postgres", log_type="slow_query"}[10m])) > 100
+        for: 10m
+        labels:
+          severity: warning
+          component: postgres
+          category: performance
+          compliance: operational
+        annotations:
+          summary: "High number of slow queries detected in PostgreSQL"
+          description: |
+            More than 100 slow queries detected over the last 10 minutes.
+            This may indicate missing indexes, inefficient queries, or resource constraints.
+          impact: "Database performance degradation, slow application response times"
+          action: "Review slow query log, analyze query execution plans, check for missing indexes"
+          runbook_url: "https://docs.example.com/runbooks/postgres-slow-queries"
+
+      - alert: PostgreSQLSlowQueryPercentileHigh
+        expr: |
+          quantile_over_time(0.95, {source="postgres", log_type="slow_query"} | json | unwrap duration [5m]) > 5000
+        for: 5m
+        labels:
+          severity: warning
+          component: postgres
+          category: performance
+          compliance: operational
+        annotations:
+          summary: "95th percentile query duration is very high"
+          description: |
+            The 95th percentile of query duration is {{ $value }}ms, which exceeds the 5000ms threshold.
+            This indicates significant performance issues affecting most queries.
+          impact: "Severe application performance degradation"
+          action: "Investigate database load, check for lock contention, review resource utilization"
+          runbook_url: "https://docs.example.com/runbooks/postgres-performance-degradation"
+
+  # ==========================================
+  # PostgreSQL Error Alerts
+  # ==========================================
+  - name: postgres_error_alerts
+    interval: 1m
+    rules:
+      - alert: PostgreSQLErrorRateHigh
+        expr: |
+          sum(rate({source="postgres", level=~"ERROR|FATAL"}[5m])) > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: postgres
+          category: errors
+          compliance: operational
+        annotations:
+          summary: "High error rate in PostgreSQL"
+          description: |
+            PostgreSQL is generating more than 50 errors per minute.
+            This may indicate application bugs, data integrity issues, or system problems.
+          impact: "Database operations failing, potential data corruption"
+          action: "Review error logs, check for common error patterns, investigate root cause"
+          runbook_url: "https://docs.example.com/runbooks/postgres-high-errors"
+
+      - alert: PostgreSQLCriticalError
+        expr: |
+          sum(rate({source="postgres", level=~"FATAL|PANIC"}[2m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: postgres
+          category: errors
+          compliance: operational
+        annotations:
+          summary: "PostgreSQL FATAL or PANIC error detected"
+          description: |
+            A critical FATAL or PANIC level error has been detected in PostgreSQL.
+            This indicates a serious system failure that requires immediate attention.
+          impact: "Database service disruption, potential data loss"
+          action: "Immediately check database status, review error logs, escalate to DBA team"
+          runbook_url: "https://docs.example.com/runbooks/postgres-critical-error"
+
+      - alert: PostgreSQLDiskSpaceWarning
+        expr: |
+          count_over_time({source="postgres", message=~".*disk space.*|.*no space.*"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: postgres
+          category: infrastructure
+          compliance: operational
+        annotations:
+          summary: "PostgreSQL disk space critical"
+          description: |
+            PostgreSQL has logged disk space warnings or errors.
+            This requires immediate action to prevent database shutdown.
+          impact: "Database may stop accepting writes, potential service outage"
+          action: "Free up disk space immediately, expand storage, clean up old logs"
+          runbook_url: "https://docs.example.com/runbooks/postgres-disk-space"
+
+  # ==========================================
+  # PostgreSQL Availability Alerts
+  # ==========================================
+  - name: postgres_availability_alerts
+    interval: 1m
+    rules:
+      - alert: PostgreSQLDatabaseDown
+        expr: |
+          sum(count_over_time({source="postgres"}[2m])) == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: postgres
+          category: availability
+          compliance: operational
+        annotations:
+          summary: "PostgreSQL appears to be down - no logs received"
+          description: |
+            No logs have been received from PostgreSQL for 2 minutes.
+            This likely indicates the database is down or logging is broken.
+          impact: "Database unavailable, all services depending on it are affected"
+          action: "Check database status, review system logs, restart if necessary"
+          runbook_url: "https://docs.example.com/runbooks/postgres-down"
+
+  # ==========================================
+  # PostgreSQL Security Alerts
+  # ==========================================
+  - name: postgres_security_alerts
+    interval: 1m
+    rules:
+      - alert: PostgreSQLSuspiciousActivity
+        expr: |
+          sum by (user) (count_over_time({source="postgres", security_event="auth_failure"}[5m])) > 5
+        for: 0m
+        labels:
+          severity: warning
+          component: postgres
+          category: security
+          compliance: security_incident
+        annotations:
+          summary: "Suspicious authentication activity detected for user {{ $labels.user }}"
+          description: |
+            More than 5 failed authentication attempts detected for user {{ $labels.user }} in 5 minutes.
+            This may indicate a brute-force attack or credential compromise attempt.
+          impact: "Potential unauthorized access attempt"
+          action: "Review authentication logs, consider blocking source IP, verify user account status"
+          runbook_url: "https://docs.example.com/runbooks/postgres-suspicious-activity"
+
+      - alert: PostgreSQLUnauthorizedAccessAttempt
+        expr: |
+          sum(rate({source="postgres", level="FATAL", message=~".*authentication.*|.*permission.*"}[5m])) > 1
+        for: 3m
+        labels:
+          severity: warning
+          component: postgres
+          category: security
+          compliance: security_incident
+        annotations:
+          summary: "Repeated unauthorized access attempts to PostgreSQL"
+          description: |
+            Multiple authentication or permission failures detected.
+            This may indicate an attack or misconfigured application.
+          impact: "Potential security breach"
+          action: "Investigate source of requests, review access controls, check application configuration"
+          runbook_url: "https://docs.example.com/runbooks/postgres-unauthorized-access"
+
+  # ==========================================
+  # pgAdmin Security Alerts
+  # ==========================================
+  - name: pgadmin_security_alerts
+    interval: 1m
+    rules:
+      - alert: pgAdminAuthenticationFailureSpike
+        expr: |
+          sum(rate({source="pgadmin", security_event="auth_failure"}[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+          component: pgadmin
+          category: security
+          compliance: security_incident
+        annotations:
+          summary: "Multiple pgAdmin authentication failures detected"
+          description: |
+            More than 3 authentication failures per second detected in pgAdmin.
+            This could indicate a brute-force attack on admin accounts.
+          impact: "Potential compromise of administrative access"
+          action: "Block source IPs, enable MFA if not already enabled, review admin account security"
+          runbook_url: "https://docs.example.com/runbooks/pgadmin-auth-failures"
+
+      - alert: pgAdminSuspiciousAdminAction
+        expr: |
+          sum(rate({source="pgadmin", security_event="admin_action", message=~".*DROP.*|.*DELETE.*|.*TRUNCATE.*"}[10m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: pgadmin
+          category: security
+          compliance: audit
+        annotations:
+          summary: "High volume of destructive operations via pgAdmin"
+          description: |
+            A high rate of potentially destructive operations (DROP, DELETE, TRUNCATE) detected via pgAdmin.
+            This may require audit verification.
+          impact: "Potential data loss or security incident"
+          action: "Verify operations are authorized, review audit logs, contact administrators"
+          runbook_url: "https://docs.example.com/runbooks/pgadmin-destructive-operations"
+
+  # ==========================================
+  # pgAdmin Operational Alerts
+  # ==========================================
+  - name: pgadmin_operational_alerts
+    interval: 1m
+    rules:
+      - alert: pgAdminHighErrorRate
+        expr: |
+          sum(rate({source="pgadmin", level="ERROR"}[10m])) > 10
+        for: 10m
+        labels:
+          severity: warning
+          component: pgadmin
+          category: errors
+          compliance: operational
+        annotations:
+          summary: "High error rate in pgAdmin"
+          description: |
+            pgAdmin is generating more than 10 errors per minute.
+            This may indicate configuration issues or connection problems to PostgreSQL.
+          impact: "Administrators may be unable to manage database effectively"
+          action: "Review pgAdmin logs, check connectivity to PostgreSQL, verify configuration"
+          runbook_url: "https://docs.example.com/runbooks/pgadmin-errors"
+
+      - alert: pgAdminDown
+        expr: |
+          sum(count_over_time({source="pgadmin"}[2m])) == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: pgadmin
+          category: availability
+          compliance: operational
+        annotations:
+          summary: "pgAdmin appears to be down - no logs received"
+          description: |
+            No logs have been received from pgAdmin for 2 minutes.
+            The admin interface may be unavailable.
+          impact: "Database administration tasks cannot be performed via web interface"
+          action: "Check pgAdmin container status, review system logs, restart if necessary"
+          runbook_url: "https://docs.example.com/runbooks/pgadmin-down"
+
+  # ==========================================
+  # Compliance and Audit Alerts
+  # ==========================================
+  - name: compliance_alerts
+    interval: 5m
+    rules:
+      - alert: DatabaseAuditLogGap
+        expr: |
+          (
+            sum(count_over_time({source="postgres", security_event!=""}[1h]))
+            +
+            sum(count_over_time({source="pgadmin", security_event!=""}[1h]))
+          ) == 0
+        for: 1h
+        labels:
+          severity: warning
+          component: logging
+          category: compliance
+          compliance: audit
+        annotations:
+          summary: "No audit logs collected for 1 hour"
+          description: |
+            No security-related audit logs have been collected from PostgreSQL or pgAdmin for 1 hour.
+            This may indicate a logging system failure and compliance violation.
+          impact: "Audit trail gap, potential compliance violation (Loi 25)"
+          action: "Verify Promtail and Loki are functioning, check log collection pipeline"
+          runbook_url: "https://docs.example.com/runbooks/audit-log-gap"
+
+      - alert: HighPrivilegeOperations
+        expr: |
+          sum(count_over_time({source=~"postgres|pgadmin", message=~".*GRANT.*|.*REVOKE.*|.*ALTER USER.*|.*CREATE USER.*"}[1h])) > 50
+        for: 0m
+        labels:
+          severity: info
+          component: database
+          category: compliance
+          compliance: audit
+        annotations:
+          summary: "High volume of privilege management operations"
+          description: |
+            More than 50 privilege management operations detected in the last hour.
+            This should be reviewed for compliance and security purposes.
+          impact: "Potential unauthorized privilege escalation"
+          action: "Review audit logs, verify operations are part of approved changes"
+          runbook_url: "https://docs.example.com/runbooks/privilege-operations"
+

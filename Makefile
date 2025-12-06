@@ -155,6 +155,10 @@ test: ## Test infrastructure accessibility
 	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/monitoring/grafana/api/health
 	@echo "Testing Prometheus..."
 	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/monitoring/prometheus/-/healthy
+	@echo "Testing pgAdmin..."
+	@curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost/pgadmin/misc/ping
+	@echo "Testing PostgreSQL..."
+	@docker-compose exec -T postgres pg_isready -U $${POSTGRES_USER:-postgres} || echo "$(RED)✗ PostgreSQL unhealthy$(NC)"
 	@echo "$(GREEN)✓ Infrastructure tests completed$(NC)"
 
 # ============================================
@@ -198,6 +202,83 @@ restart-nginx: ## Restart Nginx service
 .PHONY: restart-frontend
 restart-frontend: ## Restart Frontend service
 	@docker-compose restart frontend
+
+.PHONY: restart-postgres
+restart-postgres: ## Restart PostgreSQL service
+	@docker-compose restart postgres
+
+.PHONY: restart-pgadmin
+restart-pgadmin: ## Restart pgAdmin service
+	@docker-compose restart pgadmin
+
+# ============================================
+# Database Operations
+# ============================================
+
+.PHONY: pgadmin
+pgadmin: ## Open pgAdmin in browser
+	@echo "Opening pgAdmin..."
+	@open http://localhost/pgadmin/ || xdg-open http://localhost/pgadmin/ || echo "Visit: http://localhost/pgadmin/"
+
+.PHONY: logs-postgres
+logs-postgres: ## Show PostgreSQL logs
+	@docker-compose logs -f --tail=100 postgres
+
+.PHONY: logs-pgadmin
+logs-pgadmin: ## Show pgAdmin logs
+	@docker-compose logs -f --tail=100 pgadmin
+
+# ============================================
+# Keycloak Management
+# ============================================
+
+.PHONY: keycloak-admin
+keycloak-admin: ## Open Keycloak Admin Console in browser
+	@echo "Opening Keycloak Admin Console..."
+	@open http://localhost/auth/ || xdg-open http://localhost/auth/ || echo "Visit: http://localhost/auth/"
+	@echo "Default credentials: admin / admin"
+
+.PHONY: keycloak-logs
+keycloak-logs: ## Show Keycloak logs
+	@docker-compose logs -f --tail=100 keycloak
+
+.PHONY: restart-keycloak
+restart-keycloak: ## Restart Keycloak service
+	@docker-compose restart keycloak
+
+.PHONY: keycloak-shell
+keycloak-shell: ## Open shell in Keycloak container
+	@docker-compose exec keycloak /bin/bash
+
+.PHONY: keycloak-validate
+keycloak-validate: ## Validate Keycloak integration
+	@./scripts/validate-keycloak.sh
+
+.PHONY: prometheus-validate
+prometheus-validate: ## Validate Prometheus configuration and alerts
+	@./scripts/validate-prometheus.sh
+
+.PHONY: psql
+psql: ## Open PostgreSQL shell (psql)
+	@docker-compose exec postgres psql -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-app_db}
+
+.PHONY: db-backup
+db-backup: ## Backup PostgreSQL database
+	@echo "$(BLUE)Creating database backup...$(NC)"
+	@mkdir -p backups
+	@docker-compose exec -T postgres pg_dump -U $${POSTGRES_USER:-postgres} $${POSTGRES_DB:-app_db} > backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "$(GREEN)✓ Database backup created in backups/$(NC)"
+
+.PHONY: db-restore
+db-restore: ## Restore PostgreSQL database (usage: make db-restore FILE=backups/backup.sql)
+	@if [ -z "$(FILE)" ]; then \
+		echo "$(RED)Error: Please specify FILE$(NC)"; \
+		echo "Usage: make db-restore FILE=backups/backup.sql"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Restoring database from $(FILE)...$(NC)"
+	@docker-compose exec -T postgres psql -U $${POSTGRES_USER:-postgres} $${POSTGRES_DB:-app_db} < $(FILE)
+	@echo "$(GREEN)✓ Database restored$(NC)"
 
 # ============================================
 # Frontend Operations
@@ -398,15 +479,14 @@ urls: ## Show all service URLs
 	@echo "$(GREEN)Prometheus:$(NC)    http://localhost/monitoring/prometheus/"
 	@echo "$(GREEN)Tempo:$(NC)         http://localhost/monitoring/tempo/"
 	@echo "$(GREEN)Loki:$(NC)          http://localhost/monitoring/loki/"
+	@echo "$(GREEN)pgAdmin:$(NC)       http://localhost/pgadmin/ (admin@example.com/admin)"
 	@echo ""
-	@echo "$(BLUE)Direct Access (not through Nginx):$(NC)"
-	@echo "$(GREEN)RabbitMQ:$(NC)      http://localhost:15672 (rabbitmq/rabbitmq)"
-	@echo "$(GREEN)Elasticsearch:$(NC) http://localhost:9200 (elastic/elastic)"
-	@echo "$(GREEN)Python API:$(NC)    http://localhost:8000"
-	@echo "$(GREEN)Node.js API:$(NC)   http://localhost:3001"
-	@echo "$(GREEN)Tempo OTLP:$(NC)    grpc://localhost:4317, http://localhost:4318"
-	@echo "$(GREEN)Loki:$(NC)          http://localhost:3100"
-	@echo "$(GREEN)Tempo:$(NC)         http://localhost:3200"
+	@echo "$(BLUE)Database Access:$(NC)"
+	@echo "$(GREEN)PostgreSQL:$(NC)    Internal only (postgres:5432)"
+	@echo "  Host: postgres"
+	@echo "  Port: 5432"
+	@echo "  Database: $${POSTGRES_DB:-app_db}"
+	@echo "  User: $${POSTGRES_USER:-postgres}"
 
 .PHONY: env
 env: ## Show environment variables
@@ -451,4 +531,89 @@ install-hooks: ## Install git hooks for development
 	@echo "#!/bin/sh\nmake lint && make test" > .git/hooks/pre-commit
 	@chmod +x .git/hooks/pre-commit
 	@echo "$(GREEN)✓ Git hooks installed$(NC)"
+
+
+# ============================================
+# Testing Targets (Comprehensive)
+# ============================================
+
+.PHONY: test
+test: ## Run all tests
+	@echo "$(BLUE)Running all tests...$(NC)"
+	@./scripts/test/run-all-tests.sh
+
+.PHONY: test-unit
+test-unit: ## Run unit tests only
+	@echo "$(BLUE)Running unit tests...$(NC)"
+	@./scripts/test/run-unit-tests.sh
+
+.PHONY: test-integration
+test-integration: ## Run integration tests only
+	@echo "$(BLUE)Running integration tests...$(NC)"
+	@./scripts/test/run-integration-tests.sh
+
+.PHONY: test-e2e
+test-e2e: ## Run E2E tests only
+	@echo "$(BLUE)Running E2E tests...$(NC)"
+	@./scripts/test/run-e2e-tests.sh
+
+.PHONY: test-api
+test-api: ## Run API tests with Newman
+	@echo "$(BLUE)Running API tests...$(NC)"
+	@./scripts/test/run-api-tests.sh
+
+.PHONY: test-performance
+test-performance: ## Run performance tests with k6
+	@echo "$(BLUE)Running performance tests...$(NC)"
+	@./scripts/test/run-performance-tests.sh
+
+.PHONY: test-regression
+test-regression: ## Run regression tests
+	@echo "$(BLUE)Running regression tests...$(NC)"
+	@pytest tests/regression -v
+
+.PHONY: test-coverage
+test-coverage: ## Generate coverage report
+	@echo "$(BLUE)Generating coverage report...$(NC)"
+	@pytest tests --cov --cov-report=html --cov-report=term
+	@echo "$(GREEN)Coverage report: tests/reports/coverage-html/index.html$(NC)"
+
+.PHONY: test-watch
+test-watch: ## Run tests in watch mode
+	@pytest tests -v --looponfail
+
+.PHONY: test-setup
+test-setup: ## Setup test environment
+	@./scripts/test/setup-test-env.sh
+
+.PHONY: test-teardown
+test-teardown: ## Teardown test environment
+	@./scripts/test/teardown-test-env.sh
+
+.PHONY: test-clean
+test-clean: ## Clean test reports and cache
+	@echo "$(BLUE)Cleaning test artifacts...$(NC)"
+	@rm -rf tests/reports/* .pytest_cache tests/__pycache__
+	@echo "$(GREEN)✓ Test artifacts cleaned$(NC)"
+
+.PHONY: test-frontend
+test-frontend: ## Run frontend tests
+	@echo "$(BLUE)Running frontend tests...$(NC)"
+	@cd frontend/ai-front && npm run test
+
+.PHONY: test-nginx
+test-nginx: ## Run Nginx unit tests
+	@pytest tests/unit/nginx -v
+
+.PHONY: test-database
+test-database: ## Run database tests
+	@pytest tests/unit/postgres tests/integration/database -v
+
+.PHONY: test-auth
+test-auth: ## Run authentication tests
+	@pytest tests/integration/auth -v
+
+.PHONY: test-monitoring
+test-monitoring: ## Run monitoring tests
+	@pytest tests/unit/monitoring tests/integration/monitoring -v
 

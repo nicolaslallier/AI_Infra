@@ -1,0 +1,105 @@
+# ============================================
+# Keycloak Prometheus Alert Rules
+# AI Infrastructure Project
+# ============================================
+# These alerts monitor Keycloak health, authentication failures,
+# and security events for compliance and operational awareness.
+
+groups:
+  - name: keycloak_service_health
+    interval: 30s
+    rules:
+      - alert: KeycloakServiceDown
+        expr: up{job="keycloak"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: keycloak
+          tier: identity_provider
+          component: authentication
+        annotations:
+          summary: "Keycloak service is down"
+          description: "Keycloak identity provider service has been down for more than 2 minutes. Authentication and authorization services are unavailable."
+          impact: "Users cannot authenticate via SSO. pgAdmin and other services relying on Keycloak authentication are affected."
+          action: "Check Keycloak container status, logs, and database connectivity."
+
+      - alert: KeycloakHighMemoryUsage
+        expr: (container_memory_usage_bytes{name="ai_infra_keycloak"} / container_spec_memory_limit_bytes{name="ai_infra_keycloak"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: keycloak
+          tier: identity_provider
+          component: resources
+        annotations:
+          summary: "Keycloak high memory usage"
+          description: "Keycloak container is using more than 85% of allocated memory for 5 minutes."
+          current_value: "{{ $value | humanizePercentage }}"
+          action: "Monitor for memory leaks, consider increasing memory limits if sustained."
+
+      - alert: KeycloakHighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{name="ai_infra_keycloak"}[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: keycloak
+          tier: identity_provider
+          component: resources
+        annotations:
+          summary: "Keycloak high CPU usage"
+          description: "Keycloak container is using more than 80% CPU for 10 minutes."
+          current_value: "{{ $value | humanizePercentage }}"
+          action: "Check for unusual authentication patterns or attacks."
+
+  # NOTE: Log-based alerts have been disabled because they use LogQL (Loki Query Language)
+  # which is incompatible with Prometheus. These alerts should be moved to Loki Ruler.
+  # See docker/prometheus/alerts/README-LOG-BASED-ALERTS.md for implementation guidance.
+  #
+  # Disabled alert groups:
+  # - keycloak_authentication_security (LogQL-based)
+  # - keycloak_admin_events (LogQL-based)
+  # - keycloak_database_connectivity (LogQL-based)
+  # - keycloak_error_rate (LogQL-based)
+  #
+  # To enable log-based alerting:
+  # 1. Configure Loki Ruler (see README-LOG-BASED-ALERTS.md)
+  # 2. Move these alert definitions to docker/loki/rules/
+  # 3. Restart Loki service
+
+# ============================================
+# Notes on Alert Configuration
+# ============================================
+# 
+# Severity Levels:
+# - critical: Immediate action required, service is down or under attack
+# - warning: Attention needed, potential issues developing
+# - info: Informational, for audit trail and awareness
+#
+# IMPORTANT: Log-Based Alerts Disabled
+# =====================================
+# Several alert groups have been disabled because they use LogQL (Loki Query Language)
+# which is incompatible with Prometheus. These alerts query log streams directly using
+# operators like |~ and count_over_time() on log selectors.
+#
+# Prometheus expects PromQL queries that work with time-series metrics, not log streams.
+#
+# To enable log-based alerting for Keycloak:
+# 1. See: docker/prometheus/alerts/README-LOG-BASED-ALERTS.md
+# 2. Configure Loki Ruler component
+# 3. Move log-based alert definitions to docker/loki/rules/
+# 4. Keep metric-based alerts in Prometheus (CPU, memory, service health)
+#
+# Current Active Alerts (Metric-Based):
+# - KeycloakServiceDown: Monitors service availability via up{} metric
+# - KeycloakHighMemoryUsage: Monitors container memory usage
+# - KeycloakHighCPUUsage: Monitors container CPU usage
+#
+# Disabled Alerts (Log-Based - require Loki Ruler):
+# - KeycloakHighAuthenticationFailureRate
+# - KeycloakCriticalAuthenticationFailures
+# - KeycloakAccountLockout
+# - KeycloakAdminConfigurationChange
+# - KeycloakUserManagementEvent
+# - KeycloakDatabaseConnectionErrors
+# - KeycloakHighErrorRate
+
