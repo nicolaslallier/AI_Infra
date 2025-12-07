@@ -18,6 +18,13 @@ COMPOSE_FILE := docker-compose.yml
 COMPOSE_DEV_FILE := docker-compose.dev.yml
 ENV_FILE := .env
 
+# Paths to service repositories
+FRONTEND_DIR := ../AI_Front
+BACKEND_DIR := ../AI_Backend
+
+# Note: Frontend and Backend are now built as part of main docker-compose.yml
+# They use external repositories but are integrated into the infrastructure
+
 # ============================================
 # Help
 # ============================================
@@ -25,14 +32,24 @@ ENV_FILE := .env
 help: ## Show this help message
 	@echo "$(BLUE)AI Infrastructure - Available Commands$(NC)"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-28s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "$(YELLOW)Examples:$(NC)"
-	@echo "  make setup          # First-time setup"
-	@echo "  make up             # Start all services"
-	@echo "  make logs           # Follow all logs"
-	@echo "  make test           # Run all tests"
-	@echo "  make clean          # Stop and clean"
+	@echo "$(YELLOW)Quick Start:$(NC)"
+	@echo "  make setup                  # First-time setup"
+	@echo "  make all-build              # Build all services (complete stack)"
+	@echo "  make all-up                 # Start all services"
+	@echo "  make all-ps                 # Check status"
+	@echo "  make all-logs               # View all logs"
+	@echo "  make all-down               # Stop all services"
+	@echo ""
+	@echo "$(YELLOW)Individual Services:$(NC)"
+	@echo "  make up                     # Infrastructure only"
+	@echo "  make frontend-logs          # View frontend logs"
+	@echo "  make backend-up             # Start backend workers (AI_Backend)"
+	@echo ""
+	@echo "$(YELLOW)Troubleshooting:$(NC)"
+	@echo "  make reset-grafana          # Reset Grafana (fixes access loss)"
+	@echo "  make reset-grafana-full     # Full Grafana reset with clean volume"
 
 # ============================================
 # Setup & Installation
@@ -137,14 +154,13 @@ build: ## Build all services
 	@echo "$(GREEN)✓ Services built$(NC)"
 
 .PHONY: build-frontend
-build-frontend: frontend-build ## Alias for frontend-build
 
 # ============================================
 # Testing
 # ============================================
 
-.PHONY: test
-test: ## Test infrastructure accessibility
+.PHONY: test-infra
+test-infra: ## Test infrastructure accessibility
 	@echo "$(BLUE)Testing infrastructure stack...$(NC)"
 	@echo "Testing Nginx health..."
 	@curl -s http://localhost/health || echo "$(RED)✗ Nginx unhealthy$(NC)"
@@ -174,6 +190,28 @@ tempo: ## Open Tempo UI
 loki: ## Open Loki UI
 	@echo "Opening Loki..."
 	@open http://localhost/monitoring/loki/ || xdg-open http://localhost/monitoring/loki/ || echo "Visit: http://localhost/monitoring/loki/"
+
+.PHONY: validate-minio-dashboard
+validate-minio-dashboard: ## Validate MinIO dashboard metrics and configuration
+	@echo "$(BLUE)Validating MinIO Dashboard...$(NC)"
+	@bash scripts/validate-minio-dashboard.sh
+
+.PHONY: minio-console
+minio-console: ## Open MinIO Console in browser
+	@echo "$(GREEN)Opening MinIO Console...$(NC)"
+	@open http://localhost/minio-console/ || xdg-open http://localhost/minio-console/ || echo "Please open: http://localhost/minio-console/"
+	@echo "Login: admin / changeme123"
+
+.PHONY: minio-populate-data
+minio-populate-data: ## Populate MinIO with test data
+	@echo "$(GREEN)Populating MinIO with test data...$(NC)"
+	@bash scripts/populate-minio-test-data.sh
+
+.PHONY: minio-list-buckets
+minio-list-buckets: ## List all MinIO buckets and their contents
+	@echo "$(BLUE)📊 MinIO Bucket Summary$(NC)"
+	@echo "======================="
+	@docker exec ai_infra_minio1 mc ls local/ || echo "$(RED)✗ MinIO is not running$(NC)"
 
 # ============================================
 # Service Management
@@ -284,21 +322,9 @@ db-restore: ## Restore PostgreSQL database (usage: make db-restore FILE=backups/
 # Frontend Operations
 # ============================================
 
-.PHONY: frontend-build
-frontend-build: ## Build frontend Docker image
-	@echo "$(BLUE)Building frontend...$(NC)"
-	@docker-compose build frontend
-	@echo "$(GREEN)✓ Frontend built$(NC)"
-
-.PHONY: frontend-dev
-frontend-dev: ## Run frontend in development mode with hot-reload
-	@echo "$(BLUE)Starting frontend in development mode...$(NC)"
-	@./scripts/dev-frontend.sh
-
-.PHONY: frontend-update
-frontend-update: ## Update frontend submodule to latest version
-	@echo "$(BLUE)Updating frontend submodule...$(NC)"
-	@./scripts/update-frontend.sh
+# Note: Frontend is now included in main docker-compose.yml
+# It builds from ../AI_Front directory
+# Use main commands: make up, make build, make logs frontend
 
 .PHONY: frontend-logs
 frontend-logs: ## Show frontend logs
@@ -308,15 +334,138 @@ frontend-logs: ## Show frontend logs
 frontend-shell: ## Open shell in frontend container
 	@docker-compose exec frontend sh
 
+.PHONY: frontend-dev
+frontend-dev: ## Run frontend in development mode (standalone)
+	@echo "$(BLUE)Starting frontend in development mode...$(NC)"
+	@if [ ! -d "$(FRONTEND_DIR)" ]; then \
+		echo "$(RED)✗ Frontend directory not found: $(FRONTEND_DIR)$(NC)"; \
+		exit 1; \
+	fi
+	@cd $(FRONTEND_DIR) && npm run dev
+	@echo "$(YELLOW)Visit: http://localhost:5173$(NC)"
+
 .PHONY: frontend-test
 frontend-test: ## Run frontend tests
 	@echo "$(BLUE)Running frontend tests...$(NC)"
-	@cd frontend/ai-front && npm run test
+	@if [ ! -d "$(FRONTEND_DIR)" ]; then \
+		echo "$(RED)✗ Frontend directory not found: $(FRONTEND_DIR)$(NC)"; \
+		exit 1; \
+	fi
+	@cd $(FRONTEND_DIR) && npm run test
 
 .PHONY: frontend-validate
 frontend-validate: ## Validate frontend code (lint, format, type-check)
 	@echo "$(BLUE)Validating frontend code...$(NC)"
-	@cd frontend/ai-front && npm run validate
+	@if [ ! -d "$(FRONTEND_DIR)" ]; then \
+		echo "$(RED)✗ Frontend directory not found: $(FRONTEND_DIR)$(NC)"; \
+		exit 1; \
+	fi
+	@cd $(FRONTEND_DIR) && npm run validate
+
+.PHONY: frontend-install
+frontend-install: ## Install frontend dependencies
+	@echo "$(BLUE)Installing frontend dependencies...$(NC)"
+	@if [ ! -d "$(FRONTEND_DIR)" ]; then \
+		echo "$(RED)✗ Frontend directory not found: $(FRONTEND_DIR)$(NC)"; \
+		exit 1; \
+	fi
+	@cd $(FRONTEND_DIR) && npm install
+	@echo "$(GREEN)✓ Frontend dependencies installed$(NC)"
+
+# ============================================
+# MIDDLEWARE OPERATIONS (AI_Middle)
+# ============================================
+# Note: Middleware services have been removed
+# Authentication is handled by Keycloak in AI_Infra
+# API Gateway functionality handled by Nginx
+
+# ============================================
+# BACKEND OPERATIONS (AI_Backend)
+# ============================================
+# Note: Backend workers are now included in main docker-compose.yml
+# They build from ../AI_Backend directory
+# Use main commands: make up, make build, make logs <service>
+
+.PHONY: celery-beat-logs
+celery-beat-logs: ## Show Celery beat logs
+	@docker-compose logs -f --tail=100 celery_beat
+
+.PHONY: email-worker-logs
+email-worker-logs: ## Show email worker logs
+	@docker-compose logs -f --tail=100 email_worker
+
+.PHONY: payment-worker-logs
+payment-worker-logs: ## Show payment worker logs
+	@docker-compose logs -f --tail=100 payment_worker
+
+.PHONY: datasync-worker-logs
+datasync-worker-logs: ## Show data sync worker logs
+	@docker-compose logs -f --tail=100 data_sync_worker
+
+.PHONY: flower-logs
+flower-logs: ## Show Flower logs
+	@docker-compose logs -f --tail=100 flower
+
+.PHONY: workers-logs
+workers-logs: ## Show all workers logs
+	@docker-compose logs -f --tail=100 celery_beat email_worker payment_worker data_sync_worker
+
+.PHONY: email-worker-shell
+email-worker-shell: ## Open shell in email worker container
+	@docker-compose exec email_worker /bin/bash
+
+.PHONY: backend-test
+backend-test: ## Run backend tests
+	@echo "$(BLUE)Running backend tests...$(NC)"
+	@if [ ! -d "$(BACKEND_DIR)" ]; then \
+		echo "$(RED)✗ Backend directory not found: $(BACKEND_DIR)$(NC)"; \
+		exit 1; \
+	fi
+	@cd $(BACKEND_DIR) && pytest tests/ -v
+	@echo "$(GREEN)✓ Backend tests completed$(NC)"
+
+.PHONY: backend-migrate
+backend-migrate: ## Run backend database migrations
+	@echo "$(BLUE)Running backend migrations...$(NC)"
+	@docker-compose exec email_worker alembic upgrade head
+	@echo "$(GREEN)✓ Migrations completed$(NC)"
+
+# ============================================
+# ALL SERVICES OPERATIONS
+# ============================================
+
+.PHONY: all-build
+all-build: build ## Build all services (infra with frontend and backend workers)
+	@echo "$(GREEN)✓ All services built$(NC)"
+
+.PHONY: all-up
+all-up: up ## Alias for 'make up' - starts all services (infra, frontend, backend workers)
+	@echo "$(GREEN)✓ All services started$(NC)"
+
+.PHONY: all-down
+all-down: down ## Alias for 'make down' - stops all services
+	@echo "$(GREEN)✓ All services stopped$(NC)"
+
+.PHONY: all-logs
+all-logs: ## Show logs from all services
+	@echo "$(BLUE)Showing logs from all services...$(NC)"
+	@echo "$(YELLOW)Infrastructure logs:$(NC)"
+	@docker-compose logs --tail=20
+	@echo ""
+	@echo "$(YELLOW)Backend worker logs:$(NC)"
+	@docker-compose logs --tail=20 celery_beat email_worker payment_worker data_sync_worker
+
+.PHONY: all-ps
+all-ps: ## Show status of all services
+	@echo "$(BLUE)Infrastructure services:$(NC)"
+	@docker-compose ps
+	@echo ""
+	@echo "$(BLUE)Backend workers:$(NC)"
+	@docker-compose ps celery_beat email_worker payment_worker data_sync_worker flower
+
+.PHONY: all-test
+all-test: test frontend-test backend-test ## Run all tests (infra, frontend, backend workers)
+	@echo "$(GREEN)✓ All tests completed$(NC)"
 
 # ============================================
 # Configuration Validation
@@ -473,20 +622,39 @@ version: ## Show versions of all components
 
 .PHONY: urls
 urls: ## Show all service URLs
-	@echo "$(BLUE)Service URLs (via Nginx):$(NC)"
+	@echo "$(BLUE)=== Infrastructure Services (via Nginx) ===$(NC)"
 	@echo "$(GREEN)Frontend:$(NC)      http://localhost/"
 	@echo "$(GREEN)Grafana:$(NC)       http://localhost/monitoring/grafana/ (admin/admin)"
 	@echo "$(GREEN)Prometheus:$(NC)    http://localhost/monitoring/prometheus/"
 	@echo "$(GREEN)Tempo:$(NC)         http://localhost/monitoring/tempo/"
 	@echo "$(GREEN)Loki:$(NC)          http://localhost/monitoring/loki/"
+	@echo "$(GREEN)Keycloak:$(NC)      http://localhost/auth/ (admin/admin)"
 	@echo "$(GREEN)pgAdmin:$(NC)       http://localhost/pgadmin/ (admin@example.com/admin)"
+	@echo "$(GREEN)MinIO Console:$(NC) http://localhost/minio-console/ (admin/changeme123)"
+	@echo "$(GREEN)MinIO S3 API:$(NC)  http://localhost/storage/"
 	@echo ""
-	@echo "$(BLUE)Database Access:$(NC)"
-	@echo "$(GREEN)PostgreSQL:$(NC)    Internal only (postgres:5432)"
-	@echo "  Host: postgres"
-	@echo "  Port: 5432"
+	@echo "$(BLUE)=== Middleware Services (AI_Middle) ===$(NC)"
+	@echo "$(GREEN)Auth Service:$(NC)        http://localhost:8001 (API)"
+	@echo "$(BLUE)=== Backend Workers (AI_Backend) ===$(NC)"
+	@echo "$(GREEN)Celery Beat:$(NC)         Scheduler (integrated)"
+	@echo "$(GREEN)Email Worker:$(NC)        Port 9091 (metrics)"
+	@echo "$(GREEN)Payment Worker:$(NC)      Port 9092 (metrics)"
+	@echo "$(GREEN)Data Sync Worker:$(NC)    Port 9093 (metrics)"
+	@echo "$(GREEN)Flower UI:$(NC)           http://localhost:5555"
+	@echo ""
+	@echo "$(BLUE)=== Database Access ===$(NC)"
+	@echo "$(GREEN)PostgreSQL (Infra):$(NC)  postgres:5432"
 	@echo "  Database: $${POSTGRES_DB:-app_db}"
 	@echo "  User: $${POSTGRES_USER:-postgres}"
+	@echo ""
+	@echo "  Database: auth_db"
+	@echo ""
+	@echo "$(BLUE)=== Object Storage ===$(NC)"
+	@echo "$(GREEN)Redis Cache:$(NC)          localhost:6379"
+	@echo "$(GREEN)MinIO Cluster:$(NC)        4 nodes (minio1-4)"
+	@echo ""
+	@echo "$(GREEN)Redis (Backend):$(NC)     localhost:6379"
+	@echo "  Celery broker and cache"
 
 .PHONY: env
 env: ## Show environment variables
@@ -532,6 +700,45 @@ install-hooks: ## Install git hooks for development
 	@chmod +x .git/hooks/pre-commit
 	@echo "$(GREEN)✓ Git hooks installed$(NC)"
 
+# ============================================
+# Repository Management
+# ============================================
+
+.PHONY: repos-status
+repos-status: ## Show git status of all service repositories
+	@echo "$(BLUE)Checking repository status...$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Infrastructure (AI_Infra):$(NC)"
+	@git status --short || echo "Not a git repository"
+	@echo ""
+	@echo "$(YELLOW)Frontend (AI_Front):$(NC)"
+	@cd $(FRONTEND_DIR) && git status --short || echo "Not found or not a git repository"
+	@echo ""
+	@echo ""
+	@echo "$(YELLOW)Backend (AI_Backend):$(NC)"
+	@cd $(BACKEND_DIR) && git status --short || echo "Not found or not a git repository"
+
+.PHONY: repos-pull
+repos-pull: ## Pull latest changes in all service repositories
+	@echo "$(BLUE)Pulling latest changes in all repositories...$(NC)"
+	@echo "$(YELLOW)Infrastructure:$(NC)"
+	@git pull || echo "$(RED)Failed to pull infrastructure$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Frontend:$(NC)"
+	@cd $(FRONTEND_DIR) && git pull || echo "$(RED)Failed to pull frontend$(NC)"
+	@echo ""
+	@echo ""
+	@echo "$(YELLOW)Backend:$(NC)"
+	@cd $(BACKEND_DIR) && git pull || echo "$(RED)Failed to pull backend$(NC)"
+	@echo "$(GREEN)✓ All repositories updated$(NC)"
+
+.PHONY: repos-branch
+repos-branch: ## Show current branch of all repositories
+	@echo "$(BLUE)Repository branches:$(NC)"
+	@echo "$(YELLOW)Infrastructure:$(NC) $$(git branch --show-current)"
+	@echo "$(YELLOW)Frontend:$(NC)       $$(cd $(FRONTEND_DIR) && git branch --show-current)"
+	@echo "$(YELLOW)Backend:$(NC)        $$(cd $(BACKEND_DIR) && git branch --show-current)"
+
 
 # ============================================
 # Testing Targets (Comprehensive)
@@ -573,10 +780,13 @@ test-regression: ## Run regression tests
 	@pytest tests/regression -v
 
 .PHONY: test-coverage
-test-coverage: ## Generate coverage report
+test-coverage: ## Generate coverage report (for application code when available)
 	@echo "$(BLUE)Generating coverage report...$(NC)"
-	@pytest tests --cov --cov-report=html --cov-report=term
-	@echo "$(GREEN)Coverage report: tests/reports/coverage-html/index.html$(NC)"
+	@echo "$(YELLOW)Note: Coverage is currently disabled for infrastructure testing$(NC)"
+	@echo "$(YELLOW)Re-enable in pytest.ini when application source code (src/) is added$(NC)"
+	@pytest tests --cov-report=html --cov-report=term 2>/dev/null || \
+		(echo "$(YELLOW)Coverage not configured - tests will run without coverage$(NC)" && pytest tests -v)
+	@echo "$(GREEN)Test report: tests/reports/pytest-report.html$(NC)"
 
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode
@@ -616,4 +826,88 @@ test-auth: ## Run authentication tests
 .PHONY: test-monitoring
 test-monitoring: ## Run monitoring tests
 	@pytest tests/unit/monitoring tests/integration/monitoring -v
+
+# ============================================
+# Tempo Tracing
+# ============================================
+
+.PHONY: tempo-start-test-generator
+tempo-start-test-generator: ## Start Tempo test trace generator
+	@echo "$(BLUE)Starting Tempo test trace generator...$(NC)"
+	@docker-compose up -d --build tempo-trace-generator
+	@echo "$(GREEN)✓ Trace generator started$(NC)"
+	@echo "$(YELLOW)View logs: make tempo-logs-generator$(NC)"
+	@echo "$(YELLOW)View traces in Grafana: http://localhost/monitoring/grafana/$(NC)"
+
+.PHONY: tempo-stop-test-generator
+tempo-stop-test-generator: ## Stop Tempo test trace generator
+	@echo "$(BLUE)Stopping Tempo test trace generator...$(NC)"
+	@docker-compose stop tempo-trace-generator
+	@echo "$(GREEN)✓ Trace generator stopped$(NC)"
+
+.PHONY: tempo-logs
+tempo-logs: ## Show Tempo service logs
+	@docker logs ai_infra_tempo --tail 100 -f
+
+.PHONY: tempo-logs-generator
+tempo-logs-generator: ## Show trace generator logs
+	@docker logs ai_infra_tempo_trace_generator --tail 100 -f
+
+.PHONY: tempo-metrics
+tempo-metrics: ## Check Tempo metrics in Prometheus
+	@echo "$(BLUE)Checking Tempo metrics...$(NC)"
+	@docker exec -it ai_infra_prometheus wget -qO- http://tempo:3200/metrics | grep -E "tempo_distributor_spans_received_total|tempo_ingester_live_traces" || echo "$(YELLOW)No trace data yet - start the trace generator with 'make tempo-start-test-generator'$(NC)"
+
+.PHONY: tempo-status
+tempo-status: ## Check Tempo status
+	@echo "$(BLUE)Checking Tempo status...$(NC)"
+	@echo "$(GREEN)Service Status:$(NC)"
+	@docker ps --filter name=ai_infra_tempo --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+	@echo ""
+	@echo "$(GREEN)Tempo Health:$(NC)"
+	@docker exec ai_infra_tempo wget -qO- http://localhost:3200/ready 2>/dev/null && echo "$(GREEN)✓ Healthy$(NC)" || echo "$(RED)✗ Unhealthy$(NC)"
+	@echo ""
+	@echo "$(GREEN)Metrics (spans received):$(NC)"
+	@docker exec -it ai_infra_prometheus wget -qO- http://tempo:3200/metrics 2>/dev/null | grep tempo_distributor_spans_received_total || echo "$(YELLOW)No spans received yet$(NC)"
+
+# ============================================
+# Grafana Troubleshooting
+# ============================================
+
+.PHONY: reset-grafana
+reset-grafana: ## Quick Grafana restart (fixes most access issues)
+	@echo "$(BLUE)Restarting Grafana...$(NC)"
+	@./scripts/reset-grafana.sh
+	@echo "$(GREEN)✓ Grafana restarted$(NC)"
+	@echo "$(YELLOW)Login at: http://localhost/monitoring/grafana/$(NC)"
+	@echo "$(YELLOW)Credentials: admin/admin$(NC)"
+	@echo ""
+	@echo "$(YELLOW)💡 Still can't login? Try:$(NC)"
+	@echo "  1. Clear browser cookies for localhost"
+	@echo "  2. make reset-grafana-full"
+
+.PHONY: reset-grafana-full
+reset-grafana-full: ## Full Grafana reset (deletes all data, clean start)
+	@echo "$(BLUE)Full Grafana reset...$(NC)"
+	@./scripts/reset-grafana.sh --full
+	@echo "$(GREEN)✓ Grafana fully reset$(NC)"
+	@echo "$(YELLOW)Login at: http://localhost/monitoring/grafana/$(NC)"
+	@echo "$(YELLOW)Credentials: admin/admin$(NC)"
+
+.PHONY: reset-grafana-password
+reset-grafana-password: ## Reset Grafana admin password to 'admin'
+	@echo "$(BLUE)Resetting Grafana password...$(NC)"
+	@./scripts/reset-grafana.sh --password admin
+	@echo "$(GREEN)✓ Password reset to 'admin'$(NC)"
+	@echo "$(YELLOW)Login at: http://localhost/monitoring/grafana/$(NC)"
+	@echo "$(YELLOW)Credentials: admin/admin$(NC)"
+
+.PHONY: grafana-logs
+grafana-logs: ## Show Grafana logs
+	@docker logs ai_infra_grafana --tail 100 -f
+
+.PHONY: grafana-health
+grafana-health: ## Check Grafana health status
+	@echo "$(BLUE)Checking Grafana health...$(NC)"
+	@curl -s http://localhost/monitoring/grafana/api/health | python3 -m json.tool || echo "$(RED)✗ Grafana not responding$(NC)"
 

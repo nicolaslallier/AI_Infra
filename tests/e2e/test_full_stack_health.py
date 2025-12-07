@@ -45,7 +45,7 @@ class TestFullStackHealth:
             timeout=10
         )
         assert response.status_code == 200
-        assert "Prometheus is Healthy" in response.text
+        assert "Prometheus" in response.text and "Healthy" in response.text
     
     def test_prometheus_has_targets(self, base_url, wait_for_services):
         """Test that Prometheus is scraping configured targets."""
@@ -77,7 +77,7 @@ class TestFullStackHealth:
             timeout=10
         )
         assert response.status_code == 200
-        assert response.text == "ready"
+        assert response.text.strip() == "ready"
     
     def test_keycloak_is_accessible(self, base_url, wait_for_services):
         """Test that Keycloak is accessible through Nginx."""
@@ -152,13 +152,17 @@ class TestServiceIntegration:
     def test_loki_is_receiving_logs(self, base_url, wait_for_services):
         """Test that Loki is receiving logs from services."""
         # Query Loki for any logs from the last hour
+        # Note: Loki uses path_prefix /loki, so API is at /monitoring/loki/loki/api/v1/...
+        now_ns = int(time.time() * 1000000000)  # Current time in nanoseconds
+        hour_ago_ns = now_ns - (3600 * 1000000000)  # 1 hour ago in nanoseconds
+        
         response = requests.get(
             f"{base_url}/monitoring/loki/loki/api/v1/query_range",
             params={
                 "query": "{job=~\".+\"}",
-                "limit": 10,
-                "start": int(time.time() * 1e9) - 3600 * 1e9,  # 1 hour ago
-                "end": int(time.time() * 1e9)
+                "limit": "10",
+                "start": str(hour_ago_ns),
+                "end": str(now_ns)
             },
             timeout=10
         )

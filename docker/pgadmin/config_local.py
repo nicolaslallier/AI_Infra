@@ -188,17 +188,25 @@ if _auth_sources_env:
         AUTHENTICATION_SOURCES = [s.strip().strip("'\"") for s in _auth_sources_env.split(',')]
 
 # OAuth2 Configuration (Keycloak)
+# Note: pgAdmin must access Keycloak through nginx reverse proxy (http://nginx/auth)
+# because Keycloak is configured with KC_PROXY=edge and expects proxied requests
 OAUTH2_AUTO_CREATE_USER = True
+
+# Determine the Keycloak URL for OAuth2
+# Internal container-to-container communication must go through nginx
+_keycloak_base_url = 'http://nginx/auth'
+_keycloak_realm = os.environ.get('KEYCLOAK_REALM', 'infra-admin')
+
 OAUTH2_CONFIG = [{
     'OAUTH2_NAME': os.environ.get('PGADMIN_OAUTH2_NAME', 'Keycloak'),
     'OAUTH2_DISPLAY_NAME': os.environ.get('PGADMIN_OAUTH2_DISPLAY_NAME', 'Login with Keycloak'),
     'OAUTH2_CLIENT_ID': os.environ.get('PGADMIN_OAUTH2_CLIENT_ID', 'pgadmin-client'),
     'OAUTH2_CLIENT_SECRET': os.environ.get('PGADMIN_OAUTH2_CLIENT_SECRET', ''),
-    'OAUTH2_TOKEN_URL': os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080') + '/realms/' + os.environ.get('KEYCLOAK_REALM', 'infra-admin') + '/protocol/openid-connect/token',
-    'OAUTH2_AUTHORIZATION_URL': os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080') + '/realms/' + os.environ.get('KEYCLOAK_REALM', 'infra-admin') + '/protocol/openid-connect/auth',
-    'OAUTH2_API_BASE_URL': os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080') + '/realms/' + os.environ.get('KEYCLOAK_REALM', 'infra-admin') + '/protocol/',
-    'OAUTH2_USERINFO_ENDPOINT': os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080') + '/realms/' + os.environ.get('KEYCLOAK_REALM', 'infra-admin') + '/protocol/openid-connect/userinfo',
-    'OAUTH2_SERVER_METADATA_URL': os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080') + '/realms/' + os.environ.get('KEYCLOAK_REALM', 'infra-admin') + '/.well-known/openid-configuration',
+    'OAUTH2_TOKEN_URL': f'{_keycloak_base_url}/realms/{_keycloak_realm}/protocol/openid-connect/token',
+    'OAUTH2_AUTHORIZATION_URL': f'{_keycloak_base_url}/realms/{_keycloak_realm}/protocol/openid-connect/auth',
+    'OAUTH2_API_BASE_URL': f'{_keycloak_base_url}/realms/{_keycloak_realm}/protocol/',
+    'OAUTH2_USERINFO_ENDPOINT': f'{_keycloak_base_url}/realms/{_keycloak_realm}/protocol/openid-connect/userinfo',
+    'OAUTH2_SERVER_METADATA_URL': f'{_keycloak_base_url}/realms/{_keycloak_realm}/.well-known/openid-configuration',
     'OAUTH2_SCOPE': os.environ.get('PGADMIN_OAUTH2_SCOPE', 'openid email profile'),
     'OAUTH2_ICON': 'fa-lock',
     'OAUTH2_BUTTON_COLOR': '#0066cc',

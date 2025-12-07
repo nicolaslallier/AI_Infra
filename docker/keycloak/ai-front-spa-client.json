@@ -1,0 +1,34 @@
+{
+  "clientId": "ai-front-spa",
+  "name": "AI Frontend SPA",
+  "description": "Vue 3 Single Page Application for AI Infrastructure Management",
+  "enabled": true,
+  "clientAuthenticatorType": "client-secret",
+  "redirectUris": [
+    "http://localhost/*",
+    "http://localhost:80/*"
+  ],
+  "webOrigins": [
+    "http://localhost",
+    "http://localhost:80",
+    "+"
+  ],
+  "protocol": "openid-connect",
+  "publicClient": true,
+  "bearerOnly": false,
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "consentRequired": false,
+  "fullScopeAllowed": true,
+  "rootUrl": "http://localhost",
+  "baseUrl": "/home",
+  "adminUrl": "",
+  "attributes": {
+    "post.logout.redirect.uris": "http://localhost/*",
+    "pkce.code.challenge.method": "S256",
+    "access.token.lifespan": "3600"
+  }
+}
+

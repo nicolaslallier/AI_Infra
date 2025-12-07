@@ -2,17 +2,31 @@ services:
   # ============================================
   # FRONTEND APPLICATION
   # ============================================
+  # Built from external AI_Front repository (../AI_Front)
   frontend:
     build:
-      context: ./frontend/ai-front
+      context: ../AI_Front
       dockerfile: Dockerfile
+      args:
+        # Build-time environment variables for Vite
+        # These are embedded into the JavaScript bundle at build time
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost/api}
+        VITE_GRAFANA_URL: ${VITE_GRAFANA_URL:-http://localhost/monitoring/grafana/}
+        # Keycloak must use nginx reverse proxy, not direct port
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost/auth}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-infra-admin}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-ai-front-spa}
+        VITE_KEYCLOAK_MIN_VALIDITY: ${VITE_KEYCLOAK_MIN_VALIDITY:-70}
+        VITE_KEYCLOAK_CHECK_INTERVAL: ${VITE_KEYCLOAK_CHECK_INTERVAL:-60}
+        VITE_KEYCLOAK_DEBUG: ${VITE_KEYCLOAK_DEBUG:-false}
+        VITE_ENV: ${VITE_ENV:-production}
     container_name: ai_infra_frontend
     restart: unless-stopped
     networks:
       - frontend-net
       - monitoring-net
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -39,12 +53,11 @@ services:
     networks:
       - frontend-net
       - monitoring-net
-    # Removed hard dependencies to allow Nginx to start even if services are not ready
-    # Runtime DNS resolution in nginx.conf handles service discovery dynamically
+      - storage-net
     depends_on:
       - frontend
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,6 +85,7 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
       - '--web.external-url=/monitoring/prometheus'
       - '--web.route-prefix=/'
     volumes:
@@ -107,11 +121,10 @@ services:
       GF_INSTALL_PLUGINS: ${GRAFANA_PLUGINS:-}
       GF_USERS_ALLOW_SIGN_UP: false
       # Subpath configuration for reverse proxy
-      # NOTE: These environment variables override grafana.ini settings
-      # serve_from_sub_path=false: NGINX passes FULL path to Grafana
-      # Grafana handles the subpath (/monitoring/grafana/) internally
-      GF_SERVER_ROOT_URL: http://localhost/monitoring/grafana/
-      GF_SERVER_SERVE_FROM_SUB_PATH: "false"
+      # serve_from_sub_path=true: Grafana expects the full path including /monitoring/grafana
+      # NGINX will pass the complete path without stripping
+      GF_SERVER_ROOT_URL: http://localhost/monitoring/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SERVER_DOMAIN: localhost
       # Config file path
       GF_PATHS_CONFIG: /etc/grafana/grafana.ini
@@ -155,11 +168,13 @@ services:
     # OTLP receivers (4317, 4318) available internally within monitoring-net
     networks:
       - monitoring-net
+    depends_on:
+      - prometheus
+    # Note: Tempo image is minimal and doesn't include wget/curl/sh
+    # Healthcheck disabled - Tempo's availability is monitored via Prometheus metrics
+    # Service is considered healthy when it starts successfully
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3200/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      disable: true
     deploy:
       resources:
         limits:
@@ -168,6 +183,29 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
+
+  # ============================================
+  # TESTING: TRACE GENERATOR (Optional - for Tempo testing)
+  # ============================================
+  # Uncomment to generate test traces for Tempo dashboard
+  tempo-trace-generator:
+    build:
+      context: ./docker/tempo
+      dockerfile: Dockerfile.test
+    container_name: ai_infra_tempo_trace_generator
+    restart: unless-stopped
+    networks:
+      - monitoring-net
+    depends_on:
+      - tempo
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
 
   # ============================================
   # MONITORING: LOKI (Log Aggregation)
@@ -184,13 +222,11 @@ services:
     # Port 3100 used internally for log ingestion from Promtail/clients
     networks:
       - monitoring-net
-    # Note: Loki container doesn't include health check tools
-    # Health can be monitored via Prometheus or Grafana
-    # healthcheck:
-    #   test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
+    # Note: Loki image is minimal and doesn't include wget/curl/sh
+    # Healthcheck disabled - Loki's availability is monitored via Prometheus metrics
+    # Service is considered healthy when it starts successfully
+    healthcheck:
+      disable: true
     deploy:
       resources:
         limits:
@@ -229,6 +265,33 @@ services:
         reservations:
           cpus: '0.1'
           memory: 64M
+
+  # ============================================
+  # CACHE & MESSAGE BROKER: REDIS
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: ai_infra_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - database-net
+      - monitoring-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
   # ============================================
   # DATABASE: POSTGRESQL
@@ -436,6 +499,459 @@ services:
           cpus: '0.05'
           memory: 32M
 
+  # ============================================
+  # BACKEND WORKERS (AI_Backend)
+  # ============================================
+  # Built from external AI_Backend repository (../AI_Backend)
+  
+  # Celery Beat (Scheduler)
+  celery_beat:
+    build:
+      context: ../AI_Backend
+      dockerfile: Dockerfile
+    container_name: ai_backend_celery_beat
+    restart: unless-stopped
+    command: celery -A shared.infrastructure.celery_app beat --loglevel=info
+    environment:
+      # Connect to AI_Infra infrastructure services
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${BACKEND_DB_NAME:-ai_backend}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: db+postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${BACKEND_DB_NAME:-ai_backend}
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      ENVIRONMENT: development
+    networks:
+      - database-net
+      - monitoring-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Email Processor Worker
+  email_worker:
+    build:
+      context: ../AI_Backend
+      dockerfile: Dockerfile
+    container_name: ai_backend_email_worker
+    restart: unless-stopped
+    command: celery -A shared.infrastructure.celery_app worker --loglevel=info --queues email_processing --hostname=email_worker@%h --concurrency=4
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${BACKEND_DB_NAME:-ai_backend}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: db+postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${BACKEND_DB_NAME:-ai_backend}
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      ENVIRONMENT: development
+      PROMETHEUS_ENABLED: "true"
+      PROMETHEUS_PORT: 9091
+    ports:
+      - "9091:9091"
+    networks:
+      - database-net
+      - monitoring-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A shared.infrastructure.celery_app inspect ping -d email_worker@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # Payment Processor Worker
+  payment_worker:
+    build:
+      context: ../AI_Backend
+      dockerfile: Dockerfile
+    container_name: ai_backend_payment_worker
+    restart: unless-stopped
+    command: celery -A shared.infrastructure.celery_app worker --loglevel=info --queues payment_processing --hostname=payment_worker@%h --concurrency=4
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${BACKEND_DB_NAME:-ai_backend}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: db+postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${BACKEND_DB_NAME:-ai_backend}
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      ENVIRONMENT: development
+      PROMETHEUS_ENABLED: "true"
+      PROMETHEUS_PORT: 9092
+    ports:
+      - "9092:9092"
+    networks:
+      - database-net
+      - monitoring-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A shared.infrastructure.celery_app inspect ping -d payment_worker@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # Data Sync Worker
+  data_sync_worker:
+    build:
+      context: ../AI_Backend
+      dockerfile: Dockerfile
+    container_name: ai_backend_data_sync_worker
+    restart: unless-stopped
+    command: celery -A shared.infrastructure.celery_app worker --loglevel=info --queues data_sync --hostname=data_sync_worker@%h --concurrency=2
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${BACKEND_DB_NAME:-ai_backend}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: db+postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${BACKEND_DB_NAME:-ai_backend}
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      ENVIRONMENT: development
+      PROMETHEUS_ENABLED: "true"
+      PROMETHEUS_PORT: 9093
+    ports:
+      - "9093:9093"
+    networks:
+      - database-net
+      - monitoring-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A shared.infrastructure.celery_app inspect ping -d data_sync_worker@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # Flower (Celery monitoring UI)
+  flower:
+    build:
+      context: ../AI_Backend
+      dockerfile: Dockerfile
+    container_name: ai_backend_flower
+    restart: unless-stopped
+    command: celery -A shared.infrastructure.celery_app flower --broker=redis://redis:6379/0 --port=5555
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: db+postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${BACKEND_DB_NAME:-ai_backend}
+    ports:
+      - "5555:5555"
+    networks:
+      - database-net
+      - monitoring-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:5555 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  # ============================================
+  # OBJECT STORAGE: MinIO CLUSTER
+  # ============================================
+  # Distributed 4-node MinIO cluster for S3-compatible object storage
+  
+  minio1:
+    image: minio/minio:latest
+    container_name: ai_infra_minio1
+    restart: unless-stopped
+    command: server --console-address ":9001" http://minio{1...4}/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme123}
+      MINIO_DOMAIN: ${MINIO_DOMAIN:-storage.intra.local}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost/minio-console}
+      # Keycloak OIDC Integration
+      MINIO_IDENTITY_OPENID_CONFIG_URL: ${MINIO_IDENTITY_OPENID_CONFIG_URL:-http://keycloak:8080/auth/realms/infra-admin/.well-known/openid-configuration}
+      MINIO_IDENTITY_OPENID_CLIENT_ID: ${MINIO_IDENTITY_OPENID_CLIENT_ID:-minio-console}
+      MINIO_IDENTITY_OPENID_CLIENT_SECRET: ${MINIO_IDENTITY_OPENID_CLIENT_SECRET}
+      MINIO_IDENTITY_OPENID_CLAIM_NAME: ${MINIO_IDENTITY_OPENID_CLAIM_NAME:-policy}
+      MINIO_IDENTITY_OPENID_SCOPES: ${MINIO_IDENTITY_OPENID_SCOPES:-openid,profile,email}
+      MINIO_IDENTITY_OPENID_REDIRECT_URI: ${MINIO_IDENTITY_OPENID_REDIRECT_URI:-http://localhost/minio-console/oauth_callback}
+      # Prometheus metrics
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+      MINIO_PROMETHEUS_URL: http://prometheus:9090
+      MINIO_PROMETHEUS_JOB_ID: minio-cluster
+      # Console settings
+      MINIO_BROWSER: on
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+    volumes:
+      - minio1_data:/data
+    networks:
+      - storage-net
+      - monitoring-net
+      - database-net
+    labels:
+      com.docker.compose.service: "minio1"
+      logging.source: "minio"
+      logging.type: "object_storage"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "com.docker.compose.service,logging.source,logging.type"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  minio2:
+    image: minio/minio:latest
+    container_name: ai_infra_minio2
+    restart: unless-stopped
+    command: server --console-address ":9001" http://minio{1...4}/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme123}
+      MINIO_DOMAIN: ${MINIO_DOMAIN:-storage.intra.local}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost/minio-console}
+      # Keycloak OIDC Integration
+      MINIO_IDENTITY_OPENID_CONFIG_URL: ${MINIO_IDENTITY_OPENID_CONFIG_URL:-http://keycloak:8080/auth/realms/infra-admin/.well-known/openid-configuration}
+      MINIO_IDENTITY_OPENID_CLIENT_ID: ${MINIO_IDENTITY_OPENID_CLIENT_ID:-minio-console}
+      MINIO_IDENTITY_OPENID_CLIENT_SECRET: ${MINIO_IDENTITY_OPENID_CLIENT_SECRET}
+      MINIO_IDENTITY_OPENID_CLAIM_NAME: ${MINIO_IDENTITY_OPENID_CLAIM_NAME:-policy}
+      MINIO_IDENTITY_OPENID_SCOPES: ${MINIO_IDENTITY_OPENID_SCOPES:-openid,profile,email}
+      MINIO_IDENTITY_OPENID_REDIRECT_URI: ${MINIO_IDENTITY_OPENID_REDIRECT_URI:-http://localhost/minio-console/oauth_callback}
+      # Prometheus metrics
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+      MINIO_PROMETHEUS_URL: http://prometheus:9090
+      MINIO_PROMETHEUS_JOB_ID: minio-cluster
+      # Console settings
+      MINIO_BROWSER: on
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+    volumes:
+      - minio2_data:/data
+    networks:
+      - storage-net
+      - monitoring-net
+      - database-net
+    labels:
+      com.docker.compose.service: "minio2"
+      logging.source: "minio"
+      logging.type: "object_storage"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "com.docker.compose.service,logging.source,logging.type"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  minio3:
+    image: minio/minio:latest
+    container_name: ai_infra_minio3
+    restart: unless-stopped
+    command: server --console-address ":9001" http://minio{1...4}/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme123}
+      MINIO_DOMAIN: ${MINIO_DOMAIN:-storage.intra.local}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost/minio-console}
+      # Keycloak OIDC Integration
+      MINIO_IDENTITY_OPENID_CONFIG_URL: ${MINIO_IDENTITY_OPENID_CONFIG_URL:-http://keycloak:8080/auth/realms/infra-admin/.well-known/openid-configuration}
+      MINIO_IDENTITY_OPENID_CLIENT_ID: ${MINIO_IDENTITY_OPENID_CLIENT_ID:-minio-console}
+      MINIO_IDENTITY_OPENID_CLIENT_SECRET: ${MINIO_IDENTITY_OPENID_CLIENT_SECRET}
+      MINIO_IDENTITY_OPENID_CLAIM_NAME: ${MINIO_IDENTITY_OPENID_CLAIM_NAME:-policy}
+      MINIO_IDENTITY_OPENID_SCOPES: ${MINIO_IDENTITY_OPENID_SCOPES:-openid,profile,email}
+      MINIO_IDENTITY_OPENID_REDIRECT_URI: ${MINIO_IDENTITY_OPENID_REDIRECT_URI:-http://localhost/minio-console/oauth_callback}
+      # Prometheus metrics
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+      MINIO_PROMETHEUS_URL: http://prometheus:9090
+      MINIO_PROMETHEUS_JOB_ID: minio-cluster
+      # Console settings
+      MINIO_BROWSER: on
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+    volumes:
+      - minio3_data:/data
+    networks:
+      - storage-net
+      - monitoring-net
+      - database-net
+    labels:
+      com.docker.compose.service: "minio3"
+      logging.source: "minio"
+      logging.type: "object_storage"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "com.docker.compose.service,logging.source,logging.type"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  minio4:
+    image: minio/minio:latest
+    container_name: ai_infra_minio4
+    restart: unless-stopped
+    command: server --console-address ":9001" http://minio{1...4}/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme123}
+      MINIO_DOMAIN: ${MINIO_DOMAIN:-storage.intra.local}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost/minio-console}
+      # Keycloak OIDC Integration
+      MINIO_IDENTITY_OPENID_CONFIG_URL: ${MINIO_IDENTITY_OPENID_CONFIG_URL:-http://keycloak:8080/auth/realms/infra-admin/.well-known/openid-configuration}
+      MINIO_IDENTITY_OPENID_CLIENT_ID: ${MINIO_IDENTITY_OPENID_CLIENT_ID:-minio-console}
+      MINIO_IDENTITY_OPENID_CLIENT_SECRET: ${MINIO_IDENTITY_OPENID_CLIENT_SECRET}
+      MINIO_IDENTITY_OPENID_CLAIM_NAME: ${MINIO_IDENTITY_OPENID_CLAIM_NAME:-policy}
+      MINIO_IDENTITY_OPENID_SCOPES: ${MINIO_IDENTITY_OPENID_SCOPES:-openid,profile,email}
+      MINIO_IDENTITY_OPENID_REDIRECT_URI: ${MINIO_IDENTITY_OPENID_REDIRECT_URI:-http://localhost/minio-console/oauth_callback}
+      # Prometheus metrics
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+      MINIO_PROMETHEUS_URL: http://prometheus:9090
+      MINIO_PROMETHEUS_JOB_ID: minio-cluster
+      # Console settings
+      MINIO_BROWSER: on
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+    volumes:
+      - minio4_data:/data
+    networks:
+      - storage-net
+      - monitoring-net
+      - database-net
+    labels:
+      com.docker.compose.service: "minio4"
+      logging.source: "minio"
+      logging.type: "object_storage"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "com.docker.compose.service,logging.source,logging.type"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
 # ============================================
 # NETWORKS
 # ============================================
@@ -455,6 +971,11 @@ networks:
     ipam:
       config:
         - subnet: 172.23.0.0/24
+  storage-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.0.0/24
 
 # ============================================
 # VOLUMES
@@ -473,4 +994,14 @@ volumes:
   pgadmin_data:
     driver: local
   keycloak_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio1_data:
+    driver: local
+  minio2_data:
+    driver: local
+  minio3_data:
+    driver: local
+  minio4_data:
     driver: local

@@ -38,7 +38,17 @@ pytest tests/integration \
     --junitxml=tests/reports/junit-integration.xml \
     --html=tests/reports/integration-tests.html \
     --self-contained-html \
-    -m "integration"
+    -m "integration" \
+    --cov-report= \
+    --no-cov
 
-echo "✅ Integration tests completed"
+exit_code=$?
+
+if [ $exit_code -eq 0 ]; then
+    echo "✅ Integration tests completed"
+else
+    echo "✗ Integration Tests failed"
+fi
+
+exit $exit_code
 

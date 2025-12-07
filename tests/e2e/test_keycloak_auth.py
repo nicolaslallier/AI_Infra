@@ -80,7 +80,7 @@ class TestKeycloakAuthenticationFlow:
     
     def test_keycloak_login_page_loads(self, base_url, wait_for_services):
         """Test that Keycloak login page loads."""
-        # Get authorization URL
+        # Get authorization URL from OIDC configuration
         response = requests.get(
             f"{base_url}/auth/realms/master/.well-known/openid-configuration",
             timeout=10
@@ -88,13 +88,19 @@ class TestKeycloakAuthenticationFlow:
         assert response.status_code == 200
         config = response.json()
         
-        # The authorization endpoint should be accessible
-        # (actual login requires client_id, redirect_uri, etc.)
+        # Verify the authorization endpoint is properly configured
+        assert "authorization_endpoint" in config
         auth_endpoint = config["authorization_endpoint"]
-        # Just verify the base realm URL is working
-        realm_url = "/".join(auth_endpoint.split("/")[:-1])
-        response = requests.get(realm_url, timeout=10)
+        
+        # Test that we can access the realm info endpoint instead
+        # (authorization endpoint requires parameters and redirects)
+        response = requests.get(
+            f"{base_url}/auth/realms/master",
+            timeout=10
+        )
         assert response.status_code == 200
+        data = response.json()
+        assert data["realm"] == "master"
     
     def test_keycloak_token_endpoint_responds(self, base_url, wait_for_services):
         """Test that Keycloak token endpoint is accessible."""

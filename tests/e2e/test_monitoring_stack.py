@@ -141,10 +141,11 @@ class TestLokiStack:
             timeout=10
         )
         assert response.status_code == 200
-        assert response.text == "ready"
+        assert response.text.strip() == "ready"
     
     def test_loki_can_query_labels(self, base_url, wait_for_services):
         """Test that Loki can query for labels."""
+        # Note: Loki uses path_prefix /loki, so API is at /monitoring/loki/loki/api/v1/...
         response = requests.get(
             f"{base_url}/monitoring/loki/loki/api/v1/labels",
             timeout=10

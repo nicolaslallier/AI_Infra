@@ -343,6 +343,144 @@ scrape_configs:
                 log_type: 'error'
 
   # ============================================
+  # MinIO Logs Collection
+  # ============================================
+  - job_name: minio
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["logging.source=minio"]
+    
+    relabel_configs:
+      # Add container labels
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+      
+      # Static labels for MinIO logs
+      - replacement: 'minio'
+        target_label: 'source'
+      - replacement: 'ai-infra'
+        target_label: 'cluster'
+      - replacement: 'development'
+        target_label: 'environment'
+      - replacement: 'object_storage'
+        target_label: 'tier'
+    
+    pipeline_stages:
+      # Parse JSON logs from MinIO (standard format)
+      - json:
+          expressions:
+            time: time
+            level: level
+            api: api.name
+            status: api.status_code
+            method: api.method
+            path: api.path
+            host: api.host
+            bucket: api.bucket
+            object: api.object
+            user_agent: api.user_agent
+            remote_host: api.remote_host
+            request_id: api.request_id
+            message: message
+            error: error
+      
+      # Set timestamp from MinIO's time field
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+      
+      # Add labels from JSON fields
+      - labels:
+          level:
+          api:
+          bucket:
+          method:
+          status:
+      
+      # PII Minimization - Redact access keys in logs
+      - replace:
+          expression: '(?i)(access[_-]?key|secret[_-]?key|authorization)\s*[=:]\s*[''"]?[^\s''"]+[''"]?'
+          replace: '${1}=***REDACTED***'
+      
+      # Redact pre-signed URLs (contain sensitive tokens)
+      - replace:
+          expression: 'X-Amz-Signature=[A-Za-z0-9]+'
+          replace: 'X-Amz-Signature=***REDACTED***'
+      
+      # Set default log type
+      - static_labels:
+          log_type: 'storage_log'
+      
+      # Tag API operations by type
+      - match:
+          selector: '{source="minio", method=~"PUT|POST"}'
+          stages:
+            - static_labels:
+                operation_type: 'write'
+                log_type: 'storage_write'
+      
+      - match:
+          selector: '{source="minio", method="GET"}'
+          stages:
+            - static_labels:
+                operation_type: 'read'
+                log_type: 'storage_read'
+      
+      - match:
+          selector: '{source="minio", method="DELETE"}'
+          stages:
+            - static_labels:
+                operation_type: 'delete'
+                log_type: 'storage_delete'
+                security_event: 'object_deletion'
+      
+      # Tag authentication/authorization events
+      - match:
+          selector: '{source="minio", status=~"401|403"}'
+          stages:
+            - static_labels:
+                log_type: 'auth_failure'
+                security_event: 'access_denied'
+      
+      # Tag errors (4xx and 5xx responses)
+      - match:
+          selector: '{source="minio", status=~"[45]\\d{2}"}'
+          stages:
+            - static_labels:
+                log_type: 'error'
+      
+      # Tag slow requests (if duration field exists)
+      - match:
+          selector: '{source="minio"} |~ "duration"'
+          stages:
+            - json:
+                expressions:
+                  duration_ns: api.duration_ns
+            - labels:
+                duration_ns:
+      
+      # Tag bucket operations (admin events)
+      - match:
+          selector: '{source="minio", api=~".*Bucket.*"}'
+          stages:
+            - static_labels:
+                log_type: 'bucket_management'
+                security_event: 'bucket_operation'
+      
+      # Tag IAM/policy events (admin events)
+      - match:
+          selector: '{source="minio", api=~".*Policy.*|.*User.*|.*ServiceAccount.*"}'
+          stages:
+            - static_labels:
+                log_type: 'iam_management'
+                security_event: 'iam_operation'
+
+  # ============================================
   # System Logs (Optional - for debugging)
   # ============================================
   - job_name: system

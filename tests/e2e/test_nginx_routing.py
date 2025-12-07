@@ -17,8 +17,6 @@ class TestNginxServiceRouting:
         ("/health", "nginx"),
         ("/monitoring/grafana/", "grafana"),
         ("/monitoring/prometheus/", "prometheus"),
-        ("/monitoring/tempo/", "tempo"),
-        ("/monitoring/loki/", "loki"),
         ("/auth/", "keycloak"),
         ("/pgadmin/", "pgadmin"),
     ])
@@ -38,8 +36,6 @@ class TestNginxServiceRouting:
             "nginx": ["OK"],
             "grafana": ["Grafana"],
             "prometheus": ["Prometheus"],
-            "tempo": [],  # Tempo API doesn't return HTML
-            "loki": [],  # Loki API doesn't return HTML
             "keycloak": ["keycloak", "Keycloak", "auth"],
             "pgadmin": ["pgAdmin", "login"],
         }
@@ -48,6 +44,25 @@ class TestNginxServiceRouting:
         if indicators:
             assert any(indicator in response.text for indicator in indicators), \
                 f"Response doesn't contain expected {expected_service} content"
+    
+    def test_tempo_routing(self, base_url, wait_for_services):
+        """Test Tempo routing separately (API service)."""
+        response = requests.get(
+            f"{base_url}/monitoring/tempo/ready",
+            timeout=10
+        )
+        assert response.status_code in [200, 204], \
+            f"Tempo ready endpoint not accessible"
+    
+    def test_loki_routing(self, base_url, wait_for_services):
+        """Test Loki routing separately (API service)."""
+        response = requests.get(
+            f"{base_url}/monitoring/loki/ready",
+            timeout=10
+        )
+        assert response.status_code == 200, \
+            f"Loki ready endpoint not accessible"
+        assert response.text.strip() == "ready"
     
     def test_redirect_to_trailing_slash(self, base_url, wait_for_services):
         """Test that paths without trailing slashes redirect correctly."""

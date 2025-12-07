@@ -9,6 +9,7 @@ This infrastructure provides a complete stack for building scalable AI applicati
 - **Frontend**: Vue 3 SPA with TypeScript and Tailwind CSS
 - **Identity & Access**: Keycloak for SSO, authentication, and RBAC
 - **Database**: PostgreSQL 16 with pgAdmin web interface
+- **Object Storage**: MinIO distributed cluster (S3-compatible)
 - **Cache**: Redis 7 with persistence and clustering support
 - **Message Queue**: RabbitMQ 3 with management UI
 - **Search Engine**: Elasticsearch 8 with security enabled
@@ -22,6 +23,7 @@ Services are organized across isolated Docker networks following the principle o
 - `frontend-net`: Vue.js SPA, nginx reverse proxy, and pgAdmin UI
 - `backend-net`: Application microservices (Python, Node.js)
 - `database-net`: PostgreSQL database, pgAdmin, and postgres-exporter
+- `storage-net`: MinIO distributed object storage cluster
 - `monitoring-net`: Observability stack (Prometheus, Grafana, Tempo, Loki)
 
 ## 🚀 Quick Start
@@ -35,20 +37,38 @@ Services are organized across isolated Docker networks following the principle o
 
 ### Initial Setup
 
-1. **Clone and configure environment**:
+1. **Clone repository with submodules**:
+```bash
+git clone --recurse-submodules <repository-url>
+cd AI_Infra
+```
+
+Or if already cloned:
+```bash
+make submodule-init
+```
+
+2. **Configure environment**:
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
-2. **Start all services**:
+3. **Run initial setup** (creates directories, initializes submodules):
 ```bash
-./scripts/start.sh
+make setup
 ```
 
-3. **Verify services are running**:
+4. **Start all services**:
 ```bash
-docker-compose ps
+make up
+# Or: ./scripts/start.sh
+```
+
+5. **Verify services are running**:
+```bash
+make ps
+# Or: docker-compose ps
 ```
 
 ### Access Services
@@ -58,8 +78,11 @@ Once started, access the services at:
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | **Frontend Application** | http://localhost/ | - |
+| **Logs Viewer** | http://localhost/logs | - (redirects to Grafana Explore with Loki) |
 | **Keycloak Admin Console** | http://localhost/auth/ | admin / admin |
 | **pgAdmin (Database UI)** | http://localhost/pgadmin/ | admin@example.com / admin OR Keycloak SSO |
+| **MinIO Console (Object Storage)** | http://localhost/minio-console/ | admin / changeme123 OR Keycloak SSO |
+| **MinIO S3 API** | http://localhost/storage/ | Use service account credentials |
 | **Monitoring Dashboard** | http://localhost/monitoring/grafana/ | admin / admin |
 | Prometheus | http://localhost/monitoring/prometheus/ | - |
 | Tempo | http://localhost/monitoring/tempo/ | - |
@@ -74,6 +97,38 @@ Once started, access the services at:
 **Keycloak Test Users**:
 - admin-dba / ChangeMe123! (DBA role)
 - devops-user / ChangeMe123! (DevOps role)
+
+**User Management**:
+See [Keycloak User Management Guide](KEYCLOAK_USER_MANAGEMENT.md) for detailed instructions on creating users and assigning roles.
+
+Quick commands:
+```bash
+# List all users
+./scripts/list-keycloak-users.sh
+
+# Create a new user
+./scripts/create-test-user.sh <username> <password>
+
+# Assign roles
+./scripts/assign-user-roles.sh <username> ROLE_DEVOPS
+
+# Assign groups
+./scripts/assign-user-groups.sh <username> DevOps
+```
+
+## 🔄 Git Submodules
+
+This project uses Git submodules to manage the frontend application. The frontend is maintained in a separate repository and linked as a submodule.
+
+### Common Submodule Commands
+
+```bash
+make submodule-refresh          # Refresh to latest version (most common)
+make submodule-status           # Check current status
+make frontend-submodule-update  # Update only frontend
+```
+
+**See the [Git Submodule Guide](../AI/DOCS/AI_Infra/GIT_SUBMODULE_GUIDE.md) for comprehensive documentation.**
 
 ## 📁 Project Structure
 
@@ -193,6 +248,72 @@ PostgreSQL metrics are automatically collected and available in Grafana:
    - Query performance
    - Database locks
    - I/O activity
+
+## 🗄️ Object Storage (MinIO)
+
+### Overview
+
+The infrastructure includes a **4-node distributed MinIO cluster** providing S3-compatible object storage for:
+- PostgreSQL database backups
+- Log archives and exports
+- Application file storage
+- General-purpose blob storage
+
+### Quick Start
+
+**Initialize buckets**:
+```bash
+./scripts/minio/init-buckets.sh
+```
+
+**Create service account for backups**:
+```bash
+./scripts/minio/create-service-account.sh backup-service
+./scripts/minio/assign-policy.sh <access-key> backup-service-policy
+```
+
+**Run PostgreSQL backup**:
+```bash
+export MINIO_ACCESS_KEY=<your-key>
+export MINIO_SECRET_KEY=<your-secret>
+export POSTGRES_PASSWORD=<postgres-password>
+./scripts/backup/postgres-to-minio-backup.sh app_db
+```
+
+### Access MinIO
+
+**Web Console**: http://localhost/minio-console/
+- Login with root credentials or Keycloak SSO
+- Browse buckets, upload/download files
+- View cluster status and metrics
+
+**S3 API**: http://localhost/storage/
+- Use with any S3-compatible SDK (boto3, aws-sdk, etc.)
+- Compatible with AWS CLI tools
+- Use MinIO Client (mc) for command-line access
+
+### Monitoring
+
+MinIO metrics are available in:
+1. **Grafana Dashboard**: "MinIO Overview"
+   - Cluster health and node status
+   - Storage capacity and usage
+   - Request rates and bandwidth
+   - Error rates and performance
+
+2. **Prometheus Metrics**: 
+   - `/monitoring/prometheus/` → Query `minio_*` metrics
+
+3. **Loki Logs**:
+   - Grafana Explore → `{source="minio"}`
+   - All S3 operations logged
+   - Security events tracked
+
+### Documentation
+
+- **[MinIO Quick Start](MINIO_QUICK_START.md)** - Get started in 5 minutes
+- **[MinIO Implementation](MINIO_IMPLEMENTATION.md)** - Architecture and detailed guide
+- **[MinIO Admin Guide](MINIO_ADMIN_GUIDE.md)** - Operations and troubleshooting
 
 ### Database Configuration
 
@@ -402,15 +523,39 @@ docker-compose exec nodejs-service npm test
 
 ## 📖 Additional Documentation
 
+### Core Infrastructure
+- [Git Submodule Guide](../AI/DOCS/AI_Infra/GIT_SUBMODULE_GUIDE.md) - Complete guide to managing git submodules
 - [Keycloak Integration Guide](KEYCLOAK_INTEGRATION.md) - Complete SSO and authentication setup
 - [Environment Variables](ENV_VARIABLES.md) - Complete environment variable reference
 - [Architecture Documentation](ARCHITECTURE.md) - Detailed system architecture
 - [Nginx DNS Resolution](docker/README-NGINX-DNS.md) - Dynamic DNS resolution and service discovery
+
+### Storage & Data
 - [Database Implementation](DATABASE_IMPLEMENTATION.md) - Database setup and configuration
+- [MinIO Quick Start](MINIO_QUICK_START.md) - Get started with object storage
+- [MinIO Implementation](MINIO_IMPLEMENTATION.md) - Complete MinIO architecture guide
+- [MinIO Admin Guide](MINIO_ADMIN_GUIDE.md) - Operations and maintenance
+
+### Monitoring & Operations
 - [Logging Infrastructure](docker/README-LOGGING.md) - Centralized logging with Loki and Promtail
+- [Makefile Guide](../AI/DOCS/AI_Infra/MAKEFILE_GUIDE.md) - Complete guide to Makefile commands
 - [Cursor Rules](.cursorrules) - AI coding assistant configuration
 
 ## 🐛 Troubleshooting
+
+### 🔥 Common Issues
+
+#### Grafana Access Lost After Recreation
+
+**Problem**: Can't login to Grafana after recreating infrastructure.
+
+**Quick Fix**:
+```bash
+make reset-grafana-full
+# Then login with admin/admin
+```
+
+**See**: [GRAFANA_QUICK_FIX.md](GRAFANA_QUICK_FIX.md) for detailed solutions and [GRAFANA_ACCESS_LOSS_FIX.md](GRAFANA_ACCESS_LOSS_FIX.md) for root cause analysis and Keycloak OAuth integration.
 
 ### Services Won't Start
 

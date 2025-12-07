@@ -32,10 +32,11 @@ scrape_configs:
         labels:
           service: 'prometheus'
 
-  # Grafana - direct metrics endpoint
+  # Grafana - metrics endpoint through nginx (Grafana redirects to subpath)
   - job_name: 'grafana'
+    metrics_path: '/monitoring/grafana/metrics'
     static_configs:
-      - targets: ['grafana:3000']
+      - targets: ['nginx:80']
         labels:
           service: 'grafana'
 
@@ -62,11 +63,57 @@ scrape_configs:
           service: 'postgres'
           database: 'app_db'
 
-  # Keycloak Metrics (not available in dev mode without additional configuration)
+  # Keycloak Metrics - DISABLED: Keycloak 26 in start-dev mode doesn't expose metrics
+  # even with KC_METRICS_ENABLED=true unless explicitly built with metrics feature
+  # To enable: Change command to 'start --optimized' and add build step with metrics
   # - job_name: 'keycloak'
-  #   metrics_path: '/metrics'
+  #   metrics_path: '/q/metrics'
   #   static_configs:
-  #     - targets: ['keycloak:8080']
+  #     - targets: ['keycloak:9000']
   #       labels:
   #         service: 'keycloak'
   #         tier: 'identity_provider'
+
+  # MinIO Cluster - S3-compatible object storage
+  # Each node exposes cluster-wide metrics
+  - job_name: 'minio-cluster'
+    metrics_path: '/minio/v2/metrics/cluster'
+    scheme: http
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'minio1:9000'
+          - 'minio2:9000'
+          - 'minio3:9000'
+          - 'minio4:9000'
+        labels:
+          service: 'minio'
+          tier: 'object_storage'
+          cluster: 'distributed'
+
+  # MinIO Node-level metrics (optional, for per-node monitoring)
+  - job_name: 'minio-nodes'
+    metrics_path: '/minio/v2/metrics/node'
+    scheme: http
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['minio1:9000']
+        labels:
+          service: 'minio'
+          tier: 'object_storage'
+          node: 'minio1'
+      - targets: ['minio2:9000']
+        labels:
+          service: 'minio'
+          tier: 'object_storage'
+          node: 'minio2'
+      - targets: ['minio3:9000']
+        labels:
+          service: 'minio'
+          tier: 'object_storage'
+          node: 'minio3'
+      - targets: ['minio4:9000']
+        labels:
+          service: 'minio'
+          tier: 'object_storage'
+          node: 'minio4'
